@@ -52,9 +52,12 @@ namespace Squared.DualShock4 {
             Touchpad.ReadFromBuffer(buffer);
             Sensors.ReadFromBuffer(buffer);
 
+            // DPad state is encoded in 4 bits, basically indices into a clock
             DPad = (DualShock4Direction)(buffer[5] & 0xF);
+
             BatteryLevel = buffer[12];
 
+            // The counter byte has two bits dedicated to buttons
             Counter = buffer[7] & 0xFC;
 
             return true;
@@ -95,19 +98,31 @@ namespace Squared.DualShock4 {
             return sb.ToString();
         }
 
+        // For triggers we map them to a [0, 1] range
         internal float ByteToUnsignedFloat (byte b) {
             return b / 255f;
         }
 
+        // For axes with + - we map them to a full [-1, 1] range
         internal float ByteToSignedFloat (byte b) {
-            return (b - 127) / 127.5f;
+            var i = (b - 127);
+
+            // Account for range of [-127, 128]
+            if (i < 0)
+                return i / 127f;
+            else
+                return i / 128f;
         }
 
         internal void ReadFromBuffer (byte[] buffer) {
+            // All the axes are represented as single bytes (0-255) that cover
+            //  the whole range of the axis, so we map them to floats
+
             this[DualShock4Axis.LeftStickX] = ByteToSignedFloat(buffer[1]);
             this[DualShock4Axis.LeftStickY] = ByteToSignedFloat(buffer[2]);
             this[DualShock4Axis.RightStickX] = ByteToSignedFloat(buffer[3]);
             this[DualShock4Axis.RightStickY] = ByteToSignedFloat(buffer[4]);
+
             this[DualShock4Axis.L2] = ByteToUnsignedFloat(buffer[8]);
             this[DualShock4Axis.R2] = ByteToUnsignedFloat(buffer[9]);
         }
@@ -144,6 +159,7 @@ namespace Squared.DualShock4 {
         }
 
         internal void ReadFromBuffer (byte[] buffer) {
+            // The button states are packed into single bits, so we unpack them out
             this[DualShock4Button.Triangle] = (buffer[5] & (1 << 7)) != 0;
             this[DualShock4Button.Circle] = (buffer[5] & (1 << 6)) != 0;
             this[DualShock4Button.Cross] = (buffer[5] & (1 << 5)) != 0;
