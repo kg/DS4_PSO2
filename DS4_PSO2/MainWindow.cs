@@ -33,8 +33,17 @@ namespace DS4_PSO2 {
         };
 
         const float AxisThreshold = 0.4f;
-        const float GestureAngleDeadzoneDegrees = 30f;
-        const float GesturePressDuration = 100f;
+        const float MinimumGestureLength = 70f;
+        const float GestureAngleDeadzoneDegrees = 25f;
+        const float GesturePressDuration = 80f;
+        const float GestureConfirmDelay = 900f;
+
+        const DualShock4Button GestureConfirmButton = DualShock4Button.Circle;
+
+        const int GestureButtonBase = 12;
+        const int AfterGestureButtonBase = 16;
+
+        bool GestureConfirmActive;
 
         public MainWindow () {
             InitializeComponent();
@@ -125,6 +134,14 @@ namespace DS4_PSO2 {
             buttons = (buttons & ~mask) | maskedState;
         }
 
+        private void SetButton (ref uint buttons, int index, DualShock4Button button) {
+            var state = CurrentDualShock.Buttons[button];
+            if (button == GestureConfirmButton)
+                state |= GestureConfirmActive;
+
+            SetButton(ref buttons, index, state);
+        }
+
         private void HandleGestures (DateTime[] gestureTimes) {
             var previous = CurrentDualShock.Touchpad.GetPreviousState(0);
             var current = CurrentDualShock.Touchpad[0];
@@ -134,7 +151,8 @@ namespace DS4_PSO2 {
                 // FIXME: Read it from previous instead?
                 var deltaX = current.X - current.StartX;
                 var deltaY = current.Y - current.StartY;
-                var gestureAngle = Math.Atan2(deltaY, deltaX) * (float)(180 / Math.PI);
+                var gestureLength = (float)Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
+                var gestureAngle = (float)Math.Atan2(deltaY, deltaX) * (float)(180 / Math.PI);
 
                 if (gestureAngle < 0)
                     gestureAngle += 360;
@@ -158,15 +176,16 @@ namespace DS4_PSO2 {
                     }
                 }
 
-                if (mappedAngle.HasValue) {
+                if (mappedAngle.HasValue && (gestureLength >= MinimumGestureLength)) {
                     Console.WriteLine("Swipe at angle {0:000.0} mapped to index {1}", gestureAngle, mappedAngle.Value);
 
                     gestureTimes[mappedAngle.Value] = DateTime.UtcNow;
                 } else {
                     Console.WriteLine(
-                        "Touch went from {0:0000},{1:0000} to {2:0000},{3:0000}",
+                        "Touch went from {0:0000},{1:0000} to {2:0000},{3:0000} (length {4})",
                         current.StartX, current.StartY,
-                        current.X, current.Y
+                        current.X, current.Y,
+                        gestureLength                    
                     );
                 }
             }
@@ -191,30 +210,46 @@ namespace DS4_PSO2 {
             state.Slider = RescaleUnsignedAxis(CurrentDualShock.Axes[DualShock4Axis.R2]);
 
             uint buttons = 0;
-            SetButton(ref buttons, 0, CurrentDualShock.Buttons[DualShock4Button.Square]);
-            SetButton(ref buttons, 1, CurrentDualShock.Buttons[DualShock4Button.Cross]);
-            SetButton(ref buttons, 2, CurrentDualShock.Buttons[DualShock4Button.Circle]);
-            SetButton(ref buttons, 3, CurrentDualShock.Buttons[DualShock4Button.Triangle]);
-
-            SetButton(ref buttons, 4, CurrentDualShock.Buttons[DualShock4Button.L1]);
-            SetButton(ref buttons, 5, CurrentDualShock.Buttons[DualShock4Button.R1]);
-            SetButton(ref buttons, 6, CurrentDualShock.Buttons[DualShock4Button.Share]);
-            SetButton(ref buttons, 7, CurrentDualShock.Buttons[DualShock4Button.Options]);
-            SetButton(ref buttons, 8, CurrentDualShock.Buttons[DualShock4Button.L3]);
-            SetButton(ref buttons, 9, CurrentDualShock.Buttons[DualShock4Button.R3]);
-            SetButton(ref buttons, 10, CurrentDualShock.Buttons[DualShock4Button.PS]);
-            SetButton(ref buttons, 11, CurrentDualShock.Buttons[DualShock4Button.TouchpadClick]);
-
-            SetButton(ref buttons, 12, (CurrentDualShock.Axes[DualShock4Axis.L2] > AxisThreshold));
-            SetButton(ref buttons, 13, (CurrentDualShock.Axes[DualShock4Axis.R2] > AxisThreshold));
+            bool gestureConfirmation = false;
 
             for (var i = 0; i < gestureTimes.Length; i++) {
                 var delta = now - gestureTimes[i];
+
+                // We hold a virtual button for a set number of milliseconds after a gesture
                 SetButton(
-                    ref buttons, 14 + i,
+                    ref buttons, GestureButtonBase + i,
                     (delta.TotalMilliseconds < GesturePressDuration)
                 );
+
+                // Then shortly after the gesture button press we press a confirmation button
+                // If you perform the same gesture again, it resets the timer for the confirmation
+                //  so that you can swipe multiple times before one confirmation happens
+                if (
+                    (delta.TotalMilliseconds >= GestureConfirmDelay) && 
+                    (delta.TotalMilliseconds <= GestureConfirmDelay + GesturePressDuration)
+                )
+                    gestureConfirmation = true;
             }
+
+            GestureConfirmActive = gestureConfirmation;
+
+            SetButton(ref buttons, 0, DualShock4Button.Square);
+            SetButton(ref buttons, 1, DualShock4Button.Cross);
+            SetButton(ref buttons, 2, DualShock4Button.Circle);
+            SetButton(ref buttons, 3, DualShock4Button.Triangle);
+
+            SetButton(ref buttons, 4, DualShock4Button.L1);
+            SetButton(ref buttons, 5, DualShock4Button.R1);
+            SetButton(ref buttons, 6, DualShock4Button.Share);
+            SetButton(ref buttons, 7, DualShock4Button.Options);
+            SetButton(ref buttons, 8, DualShock4Button.L3);
+            SetButton(ref buttons, 9, DualShock4Button.R3);
+
+            SetButton(ref buttons, 10, (CurrentDualShock.Axes[DualShock4Axis.L2] > AxisThreshold));
+            SetButton(ref buttons, 11, (CurrentDualShock.Axes[DualShock4Axis.R2] > AxisThreshold));
+
+            SetButton(ref buttons, AfterGestureButtonBase, DualShock4Button.PS);
+            SetButton(ref buttons, AfterGestureButtonBase + 1, DualShock4Button.TouchpadClick);
 
             state.Buttons = buttons;
 
