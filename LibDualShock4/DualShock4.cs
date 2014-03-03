@@ -22,7 +22,7 @@ namespace Squared.DualShock4 {
             }
         }
 
-        public DualShock4Directions DPad {
+        public DualShock4Direction DPad {
             get;
             private set;
         }
@@ -35,9 +35,10 @@ namespace Squared.DualShock4 {
 
             Device.flush_Queue();
 
+            Axes.ReadFromBuffer(buffer);
             Buttons.ReadFromBuffer(buffer);
 
-            DPad = (DualShock4Directions)(buffer[5] & 0xF);
+            DPad = (DualShock4Direction)(buffer[5] & 0xF);
 
             return true;
         }
@@ -48,9 +49,18 @@ namespace Squared.DualShock4 {
     }
 
     public class DualShock4Axes {
-        private float[] State = new float [8];
+        private float[] State = new float [6];
 
         internal DualShock4Axes () {
+        }
+
+        public float this[DualShock4Axis axis] {
+            get {
+                return State[(int)axis];
+            }
+            set {
+                State[(int)axis] = value;
+            }
         }
 
         public float this[int index] {
@@ -63,9 +73,26 @@ namespace Squared.DualShock4 {
             var sb = new StringBuilder();
 
             for (var i = 0; i < State.Length; i++)
-                sb.AppendFormat("{0}: {1:00.000}{2}", i, State[i], (i < (State.Length - 1)) ? "\r\n" : "");
+                sb.AppendFormat("{0}: {1:+0.000;-0.000}{2}", (DualShock4Axis)i, State[i], (i < (State.Length - 1)) ? "\r\n" : "");
 
             return sb.ToString();
+        }
+
+        internal float ByteToUnsignedFloat (byte b) {
+            return b / 255f;
+        }
+
+        internal float ByteToSignedFloat (byte b) {
+            return (b - 127) / 127.5f;
+        }
+
+        internal void ReadFromBuffer (byte[] buffer) {
+            this[DualShock4Axis.LeftStickX] = ByteToSignedFloat(buffer[1]);
+            this[DualShock4Axis.LeftStickY] = ByteToSignedFloat(buffer[2]);
+            this[DualShock4Axis.RightStickX] = ByteToSignedFloat(buffer[3]);
+            this[DualShock4Axis.RightStickY] = ByteToSignedFloat(buffer[4]);
+            this[DualShock4Axis.L2] = ByteToUnsignedFloat(buffer[8]);
+            this[DualShock4Axis.R2] = ByteToUnsignedFloat(buffer[9]);
         }
     }
 
@@ -117,7 +144,16 @@ namespace Squared.DualShock4 {
         }
     }
 
-    public enum DualShock4Directions : int {
+    public enum DualShock4Axis : int {
+        LeftStickX,
+        LeftStickY,
+        RightStickX,
+        RightStickY,
+        L2,
+        R2
+    }
+
+    public enum DualShock4Direction : int {
         Neutral = 8,
         Up = 0,
         UpRight = 1,
