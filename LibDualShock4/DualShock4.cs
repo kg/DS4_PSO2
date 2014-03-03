@@ -185,16 +185,22 @@ namespace Squared.DualShock4 {
             public bool IsActive;
             public byte Id;
             public int X, Y;
+            public int StartX, StartY;
 
             public override string ToString () {
-                return String.Format("{3} #{0} @ {1:0000}, {2:0000}", Id, X, Y, IsActive ? "active" : "inactive");
+                return String.Format("{3} #{0} @ {1:0000}, {2:0000} (start {4:0000} {5:0000})", Id, X, Y, IsActive ? "active" : "inactive", StartX, StartY);
             }
         }
 
         const int MaxTouches = 2;
         private readonly TouchInfo[] TouchInfos = new TouchInfo[MaxTouches];
+        private readonly TouchInfo[] PreviousTouchInfos = new TouchInfo[MaxTouches];
 
         internal DualShock4Touchpad () {
+        }
+
+        public TouchInfo GetPreviousState (int index) {
+            return PreviousTouchInfos[index];
         }
 
         public TouchInfo this[int index] {
@@ -224,20 +230,39 @@ namespace Squared.DualShock4 {
 
             Count = 0;
 
+            Array.Copy(TouchInfos, PreviousTouchInfos, TouchInfos.Length);
+
             for (var i = 0; i < MaxTouches; i++) {
                 var localOffset = offset + (i * touchDataSize);
+                var isActive = (buffer[localOffset] & 0x80) == 0;
+                var touchId = (byte)(buffer[localOffset] & 0x7F);
                 var touchX = buffer[localOffset + 1] + ((buffer[localOffset + 2] & 0xF) * 255);
                 var touchY = ((buffer[localOffset + 2] & 0xF0) >> 4) + (buffer[localOffset + 3] * 16);
+                int startX, startY;
+
+                if (
+                    (PreviousTouchInfos[i].Id == touchId) && 
+                    PreviousTouchInfos[i].IsActive
+                ) {
+                    startX = PreviousTouchInfos[i].StartX;
+                    startY = PreviousTouchInfos[i].StartY;
+                } else {
+                    startX = touchX;
+                    startY = touchY;
+                }
 
                 TouchInfos[i] = new TouchInfo {
-                    IsActive = (buffer[localOffset] & 0x80) == 0,
-                    Id = (byte)(buffer[localOffset] & 0x7F),
+                    IsActive = isActive,
+                    Id = touchId,
                     X = touchX,
-                    Y = touchY
+                    Y = touchY,
+                    StartX = startX,
+                    StartY = startY
                 };
 
-                if (TouchInfos[i].IsActive)
+                if (isActive) {
                     Count = Math.Max(Count, i + 1);
+                }
             }
         }
     }

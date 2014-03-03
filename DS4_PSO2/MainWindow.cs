@@ -30,6 +30,10 @@ namespace DS4_PSO2 {
             { DualShock4Direction.UpLeft, 31500 }
         };
 
+        const float AxisThreshold = 0.4f;
+        const float GestureAngleDeadzoneDegrees = 30f;
+        const float GesturePressDuration = 100f;
+
         public MainWindow () {
             InitializeComponent();
 
@@ -44,6 +48,7 @@ namespace DS4_PSO2 {
 
         private void UpdaterThreadFunc () {
             var previousJoystick = JoystickToUse;
+            var gestureTimes = new DateTime[4];
 
             while (true) {
                 uint? activeJoystick;
@@ -82,7 +87,7 @@ namespace DS4_PSO2 {
                 }
 
                 if (activeJoystick.HasValue && (CurrentDualShock != null))
-                    UpdateJoystick(activeJoystick.Value);
+                    UpdateJoystick(activeJoystick.Value, gestureTimes);
 
                 previousJoystick = activeJoystick;
 
@@ -110,9 +115,67 @@ namespace DS4_PSO2 {
             return (int)(value * 32767f);
         }
 
-        private bool UpdateJoystick (uint id) {
+        private static void SetButton (ref uint buttons, int index, bool state) {
+            uint mask = (1u << index);
+            uint maskedState = state ? (0xFFFFFFFFu & mask) : 0;
+
+            buttons = (buttons & ~mask) | maskedState;
+        }
+
+        private void HandleGestures (DateTime[] gestureTimes) {
+            var previous = CurrentDualShock.Touchpad.GetPreviousState(0);
+            var current = CurrentDualShock.Touchpad[0];
+
+            // We might miss swipes if our refresh interval is too slow
+            if (previous.IsActive && !current.IsActive) {
+                // FIXME: Read it from previous instead?
+                var deltaX = current.X - current.StartX;
+                var deltaY = current.Y - current.StartY;
+                var gestureAngle = Math.Atan2(deltaY, deltaX) * (float)(180 / Math.PI);
+
+                if (gestureAngle < 0)
+                    gestureAngle += 360;
+
+                var possibleGestureAngles = new[] { 0f, 90f, 180f, 270f, 360f };
+                int? mappedAngle = null;
+                float mappedAngleDistance = 99999;
+
+                for (var i = 0; i < possibleGestureAngles.Length; i++) {
+                    var angle = possibleGestureAngles[i];
+                    var angleDistance = (float)Math.Abs(gestureAngle - angle);
+
+                    if ((angleDistance < GestureAngleDeadzoneDegrees) && (angleDistance < mappedAngleDistance)) {
+                        if (i == 4)
+                            mappedAngle = 0;
+                        else
+                            mappedAngle = i;
+
+                        mappedAngleDistance = angleDistance;
+                        // Debug.WriteLine("Matched gesture angle of {0:000.00} degrees to angle of {1:000.00} degrees", gestureAngle, angle);
+                    }
+                }
+
+                if (mappedAngle.HasValue) {
+                    Console.WriteLine("Swipe at angle {0:000.0} mapped to index {1}", gestureAngle, mappedAngle.Value);
+
+                    gestureTimes[mappedAngle.Value] = DateTime.UtcNow;
+                } else {
+                    Console.WriteLine(
+                        "Touch went from {0:0000},{1:0000} to {2:0000},{3:0000}",
+                        current.StartX, current.StartY,
+                        current.X, current.Y
+                    );
+                }
+            }
+        }
+
+        private bool UpdateJoystick (uint id, DateTime[] gestureTimes) {
             // FIXME: It'd be faster to use the UpdateVJD function that takes a bitpacked blob,
             //  but I'm too lazy to get that right currently.
+
+            var now = DateTime.UtcNow;
+
+            HandleGestures(gestureTimes);
 
             VJoy.JoystickState state = default(VJoy.JoystickState);
 
@@ -123,6 +186,34 @@ namespace DS4_PSO2 {
             state.AxisYRot = RescaleSignedAxis(CurrentDualShock.Axes[DualShock4Axis.RightStickY]);
             state.AxisZRot = RescaleUnsignedAxis(CurrentDualShock.Axes[DualShock4Axis.L2]);
             state.Slider = RescaleUnsignedAxis(CurrentDualShock.Axes[DualShock4Axis.R2]);
+
+            uint buttons = 0;
+            SetButton(ref buttons, 0, CurrentDualShock.Buttons[DualShock4Button.Square]);
+            SetButton(ref buttons, 1, CurrentDualShock.Buttons[DualShock4Button.Cross]);
+            SetButton(ref buttons, 2, CurrentDualShock.Buttons[DualShock4Button.Circle]);
+            SetButton(ref buttons, 3, CurrentDualShock.Buttons[DualShock4Button.Triangle]);
+
+            SetButton(ref buttons, 4, CurrentDualShock.Buttons[DualShock4Button.L1]);
+            SetButton(ref buttons, 5, CurrentDualShock.Buttons[DualShock4Button.R1]);
+            SetButton(ref buttons, 6, CurrentDualShock.Buttons[DualShock4Button.Share]);
+            SetButton(ref buttons, 7, CurrentDualShock.Buttons[DualShock4Button.Options]);
+            SetButton(ref buttons, 8, CurrentDualShock.Buttons[DualShock4Button.L3]);
+            SetButton(ref buttons, 9, CurrentDualShock.Buttons[DualShock4Button.R3]);
+            SetButton(ref buttons, 10, CurrentDualShock.Buttons[DualShock4Button.PS]);
+            SetButton(ref buttons, 11, CurrentDualShock.Buttons[DualShock4Button.TouchpadClick]);
+
+            SetButton(ref buttons, 12, (CurrentDualShock.Axes[DualShock4Axis.L2] > AxisThreshold));
+            SetButton(ref buttons, 13, (CurrentDualShock.Axes[DualShock4Axis.R2] > AxisThreshold));
+
+            for (var i = 0; i < gestureTimes.Length; i++) {
+                var delta = now - gestureTimes[i];
+                SetButton(
+                    ref buttons, 14 + i,
+                    (delta.TotalMilliseconds < GesturePressDuration)
+                );
+            }
+
+            state.Buttons = buttons;
 
             if (!VJoy.UpdateVJD(id, ref state))
                 return false;
