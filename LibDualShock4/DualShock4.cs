@@ -12,6 +12,7 @@ namespace Squared.DualShock4 {
         public readonly DualShock4Axes Axes = new DualShock4Axes();
         public readonly DualShock4Buttons Buttons = new DualShock4Buttons();
         public readonly DualShock4Touchpad Touchpad = new DualShock4Touchpad();
+        public readonly DualShock4Sensors Sensors = new DualShock4Sensors();
 
         public DualShock4 (DualShock4Info info) {
             Info = info;
@@ -21,6 +22,16 @@ namespace Squared.DualShock4 {
             get {
                 return Info.Device;
             }
+        }
+
+        public int Counter {
+            get;
+            private set;
+        }
+
+        public byte BatteryLevel {
+            get;
+            private set;
         }
 
         public DualShock4Direction DPad {
@@ -39,8 +50,12 @@ namespace Squared.DualShock4 {
             Axes.ReadFromBuffer(buffer);
             Buttons.ReadFromBuffer(buffer);
             Touchpad.ReadFromBuffer(buffer);
+            Sensors.ReadFromBuffer(buffer);
 
             DPad = (DualShock4Direction)(buffer[5] & 0xF);
+            BatteryLevel = buffer[12];
+
+            Counter = buffer[7] & 0xFC;
 
             return true;
         }
@@ -142,11 +157,14 @@ namespace Squared.DualShock4 {
             this[DualShock4Button.Options] = (buffer[6] & (1 << 5)) != 0;
 
             this[DualShock4Button.PS] = (buffer[7] & (1 << 0)) != 0;
-            this[DualShock4Button.TouchpadClick] = (buffer[7] & (1 << 2 - 1)) != 0;
+            this[DualShock4Button.TouchpadClick] = (buffer[7] & (1 << 1)) != 0;
         }
     }
 
     public class DualShock4Touchpad {
+        public const int MaxX = 1920;
+        public const int MaxY = 943;
+
         public struct TouchInfo {
             public bool IsActive;
             public byte Id;
@@ -208,6 +226,58 @@ namespace Squared.DualShock4 {
         }
     }
 
+    public class DualShock4Sensors {
+        public struct Reading {
+            public float Value;
+
+            public override string ToString () {
+                return String.Format("{0:+000.00;-000.00}", Value);
+            }
+        }
+
+        private readonly Reading[] Readings = new Reading[6];
+
+        public Reading this[int index] {
+            get {
+                return Readings[index];
+            }
+        }
+
+        public override string ToString () {
+            var sb = new StringBuilder();
+
+            for (var i = 0; i < Readings.Length; i++) {
+                sb.AppendFormat("{0}: {1}\r\n", (DualShock4Sensor)i, Readings[i]);
+            }
+
+            return sb.ToString();
+        }
+
+        internal float DecodeHighLow (sbyte high, byte low) {
+            float result = (int)high;
+
+            result += (float)((low / 255f) * Math.Sign(result));
+
+            return result;
+        }
+
+        internal unsafe void ReadFromBuffer (byte[] buffer) {
+            const int offset = 13;
+
+            fixed (byte* pBuffer = buffer) {
+                sbyte* pSigned = (sbyte *)pBuffer;
+
+                for (var i = 0; i < Readings.Length; i++) {
+                    int localOffset = (offset) + (i * 2);
+
+                    Readings[i] = new Reading {
+                        Value = DecodeHighLow(pSigned[localOffset + 1], buffer[localOffset])
+                    };
+                }
+            }
+        }
+    }
+
     public enum DualShock4Axis : int {
         LeftStickX,
         LeftStickY,
@@ -242,5 +312,14 @@ namespace Squared.DualShock4 {
         Options,
         PS,
         TouchpadClick
+    }
+
+    public enum DualShock4Sensor : int {
+        GyroscopeX,
+        GyroscopeY,
+        GyroscopeZ,
+        AccelerometerX,
+        AccelerometerY,
+        AccelerometerZ
     }
 }
