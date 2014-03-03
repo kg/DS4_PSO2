@@ -20,8 +20,8 @@ namespace DS4_PSO2 {
 
         private readonly TrackBar[] SliderBySensorIndex;
 
-        private static readonly Dictionary<DualShock4Direction, int> DPadMapping = new Dictionary<DualShock4Direction, int> {
-            { DualShock4Direction.Neutral, -1 },
+        private static readonly Dictionary<DualShock4Direction, uint> DPadMapping = new Dictionary<DualShock4Direction, uint> {
+            { DualShock4Direction.Neutral, 0xFFFFFFFF },
             { DualShock4Direction.Up, 0 },
             { DualShock4Direction.UpRight, 4500 },
             { DualShock4Direction.Right, 9000 },
@@ -252,16 +252,9 @@ namespace DS4_PSO2 {
             SetButton(ref buttons, AfterGestureButtonBase + 1, DualShock4Button.TouchpadClick);
 
             state.Buttons = buttons;
+            state.bHats = DPadMapping[CurrentDualShock.DPad];
 
             if (!VJoy.UpdateVJD(id, ref state))
-                return false;
-
-            // UpdateVJD is a broken piece of shit and doesn't read the bHats field at all
-            int povHat;
-            if (!DPadMapping.TryGetValue(CurrentDualShock.DPad, out povHat))
-                povHat = -1;
-
-            if (!VJoy.SetContPov(povHat, id, 1))
                 return false;
 
             return true;
