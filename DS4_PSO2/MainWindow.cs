@@ -16,10 +16,11 @@ namespace DS4_PSO2 {
             if (CurrentDualShock != null) {
                 if (CurrentDualShock.TryUpdate()) {
                     txtDualShock4State.Text = String.Format(
-                        "Axes:\r\n{0}\r\nDPad:\r\n{1}\r\nButtons:\r\n{2}",
+                        "Axes:\r\n{0}\r\nDPad:\r\n{1}\r\nButtons:\r\n{2}\r\n{3}",
                         CurrentDualShock.Axes,
                         CurrentDualShock.DPad,
-                        CurrentDualShock.Buttons
+                        CurrentDualShock.Buttons,
+                        CurrentDualShock.Touchpad
                     );
 
                     if (chkJoystickEnabled.Checked)

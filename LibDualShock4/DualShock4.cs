@@ -11,6 +11,7 @@ namespace Squared.DualShock4 {
 
         public readonly DualShock4Axes Axes = new DualShock4Axes();
         public readonly DualShock4Buttons Buttons = new DualShock4Buttons();
+        public readonly DualShock4Touchpad Touchpad = new DualShock4Touchpad();
 
         public DualShock4 (DualShock4Info info) {
             Info = info;
@@ -37,6 +38,7 @@ namespace Squared.DualShock4 {
 
             Axes.ReadFromBuffer(buffer);
             Buttons.ReadFromBuffer(buffer);
+            Touchpad.ReadFromBuffer(buffer);
 
             DPad = (DualShock4Direction)(buffer[5] & 0xF);
 
@@ -140,7 +142,69 @@ namespace Squared.DualShock4 {
             this[DualShock4Button.Options] = (buffer[6] & (1 << 5)) != 0;
 
             this[DualShock4Button.PS] = (buffer[7] & (1 << 0)) != 0;
-            this[DualShock4Button.TouchPanelClick] = (buffer[7] & (1 << 2 - 1)) != 0;
+            this[DualShock4Button.TouchpadClick] = (buffer[7] & (1 << 2 - 1)) != 0;
+        }
+    }
+
+    public class DualShock4Touchpad {
+        public struct TouchInfo {
+            public bool IsActive;
+            public byte Id;
+            public int X, Y;
+
+            public override string ToString () {
+                return String.Format("{3} #{0} @ {1:0000}, {2:0000}", Id, X, Y, IsActive ? "active" : "inactive");
+            }
+        }
+
+        const int MaxTouches = 2;
+        private readonly TouchInfo[] TouchInfos = new TouchInfo[MaxTouches];
+
+        internal DualShock4Touchpad () {
+        }
+
+        public TouchInfo this[int index] {
+            get {
+                return TouchInfos[index];
+            }
+        }
+
+        public int Count {
+            get;
+            private set;
+        }
+
+        public override string ToString () {
+            var sb = new StringBuilder();
+
+            for (var i = 0; i < Count; i++) {
+                sb.AppendFormat("Touch #{0}: {1}\r\n", i, TouchInfos[i]);
+            }
+
+            return sb.ToString();
+        }
+
+        internal void ReadFromBuffer (byte[] buffer) {
+            const int offset = 35;
+            const int touchDataSize = 4;
+
+            Count = 0;
+
+            for (var i = 0; i < MaxTouches; i++) {
+                var localOffset = offset + (i * touchDataSize);
+                var touchX = buffer[localOffset + 1] + ((buffer[localOffset + 2] & 0xF) * 255);
+                var touchY = ((buffer[localOffset + 2] & 0xF0) >> 4) + (buffer[localOffset + 3] * 16);
+
+                TouchInfos[i] = new TouchInfo {
+                    IsActive = (buffer[localOffset] & 0x80) == 0,
+                    Id = (byte)(buffer[localOffset] & 0x7F),
+                    X = touchX,
+                    Y = touchY
+                };
+
+                if (TouchInfos[i].IsActive)
+                    Count = Math.Max(Count, i + 1);
+            }
         }
     }
 
@@ -177,6 +241,6 @@ namespace Squared.DualShock4 {
         Share,
         Options,
         PS,
-        TouchPanelClick
+        TouchpadClick
     }
 }
