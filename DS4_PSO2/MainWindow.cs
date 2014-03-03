@@ -33,9 +33,9 @@ namespace DS4_PSO2 {
         };
 
         const float AxisThreshold = 0.4f;
-        const float MinimumGestureLength = 70f;
-        const float GestureAngleDeadzoneDegrees = 25f;
-        const float GesturePressDuration = 80f;
+        const float MinimumGestureLength = 40f;
+        const float GestureAngleDeadzoneDegrees = 28f;
+        const float GesturePressDuration = 75f;
         const float GestureConfirmDelay = 900f;
 
         const DualShock4Button GestureConfirmButton = DualShock4Button.Circle;
@@ -43,6 +43,7 @@ namespace DS4_PSO2 {
         const int GestureButtonBase = 12;
         const int AfterGestureButtonBase = 16;
 
+        DateTime MostRecentGestureTime;
         bool GestureConfirmActive;
 
         public MainWindow () {
@@ -143,6 +144,7 @@ namespace DS4_PSO2 {
         }
 
         private void HandleGestures (DateTime[] gestureTimes) {
+            var now = DateTime.UtcNow;
             var previous = CurrentDualShock.Touchpad.GetPreviousState(0);
             var current = CurrentDualShock.Touchpad[0];
 
@@ -179,7 +181,8 @@ namespace DS4_PSO2 {
                 if (mappedAngle.HasValue && (gestureLength >= MinimumGestureLength)) {
                     Console.WriteLine("Swipe at angle {0:000.0} mapped to index {1}", gestureAngle, mappedAngle.Value);
 
-                    gestureTimes[mappedAngle.Value] = DateTime.UtcNow;
+                    gestureTimes[mappedAngle.Value] = now;
+                    MostRecentGestureTime = now;
                 } else {
                     Console.WriteLine(
                         "Touch went from {0:0000},{1:0000} to {2:0000},{3:0000} (length {4})",
@@ -210,28 +213,25 @@ namespace DS4_PSO2 {
             state.Slider = RescaleUnsignedAxis(CurrentDualShock.Axes[DualShock4Axis.R2]);
 
             uint buttons = 0;
-            bool gestureConfirmation = false;
+            TimeSpan delta;
 
             for (var i = 0; i < gestureTimes.Length; i++) {
-                var delta = now - gestureTimes[i];
+                delta = now - gestureTimes[i];
 
                 // We hold a virtual button for a set number of milliseconds after a gesture
                 SetButton(
                     ref buttons, GestureButtonBase + i,
                     (delta.TotalMilliseconds < GesturePressDuration)
                 );
-
-                // Then shortly after the gesture button press we press a confirmation button
-                // If you perform the same gesture again, it resets the timer for the confirmation
-                //  so that you can swipe multiple times before one confirmation happens
-                if (
-                    (delta.TotalMilliseconds >= GestureConfirmDelay) && 
-                    (delta.TotalMilliseconds <= GestureConfirmDelay + GesturePressDuration)
-                )
-                    gestureConfirmation = true;
             }
 
-            GestureConfirmActive = gestureConfirmation;
+            // Then shortly after the gesture button press we press a confirmation button
+            // If you perform the same gesture again, it resets the timer for the confirmation
+            //  so that you can swipe multiple times before one confirmation happens
+            delta = (now - MostRecentGestureTime);
+
+            GestureConfirmActive = (delta.TotalMilliseconds >= GestureConfirmDelay) &&
+                (delta.TotalMilliseconds <= GestureConfirmDelay + GesturePressDuration);
 
             SetButton(ref buttons, 0, DualShock4Button.Square);
             SetButton(ref buttons, 1, DualShock4Button.Cross);
