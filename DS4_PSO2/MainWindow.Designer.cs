@@ -55,20 +55,22 @@
             // 
             // txtDualShock4State
             // 
-            this.txtDualShock4State.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            this.txtDualShock4State.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.txtDualShock4State.Location = new System.Drawing.Point(16, 38);
             this.txtDualShock4State.Multiline = true;
             this.txtDualShock4State.Name = "txtDualShock4State";
             this.txtDualShock4State.ReadOnly = true;
-            this.txtDualShock4State.Size = new System.Drawing.Size(416, 121);
+            this.txtDualShock4State.Size = new System.Drawing.Size(416, 346);
             this.txtDualShock4State.TabIndex = 2;
             this.txtDualShock4State.WordWrap = false;
             // 
             // label2
             // 
+            this.label2.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(13, 168);
+            this.label2.Location = new System.Drawing.Point(13, 392);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(83, 13);
             this.label2.TabIndex = 3;
@@ -76,7 +78,8 @@
             // 
             // nudJoystickNumber
             // 
-            this.nudJoystickNumber.Location = new System.Drawing.Point(122, 166);
+            this.nudJoystickNumber.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+            this.nudJoystickNumber.Location = new System.Drawing.Point(122, 390);
             this.nudJoystickNumber.Maximum = new decimal(new int[] {
             8,
             0,
@@ -98,8 +101,9 @@
             // 
             // btnConfigureJoystick
             // 
+            this.btnConfigureJoystick.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.btnConfigureJoystick.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.btnConfigureJoystick.Location = new System.Drawing.Point(172, 192);
+            this.btnConfigureJoystick.Location = new System.Drawing.Point(172, 416);
             this.btnConfigureJoystick.Name = "btnConfigureJoystick";
             this.btnConfigureJoystick.Size = new System.Drawing.Size(100, 25);
             this.btnConfigureJoystick.TabIndex = 5;
@@ -108,9 +112,10 @@
             // 
             // chkJoystickEnabled
             // 
+            this.chkJoystickEnabled.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.chkJoystickEnabled.Appearance = System.Windows.Forms.Appearance.Button;
             this.chkJoystickEnabled.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.chkJoystickEnabled.Location = new System.Drawing.Point(16, 192);
+            this.chkJoystickEnabled.Location = new System.Drawing.Point(16, 416);
             this.chkJoystickEnabled.Name = "chkJoystickEnabled";
             this.chkJoystickEnabled.Size = new System.Drawing.Size(150, 25);
             this.chkJoystickEnabled.TabIndex = 6;
@@ -133,7 +138,7 @@
             // MainWindow
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
-            this.ClientSize = new System.Drawing.Size(444, 272);
+            this.ClientSize = new System.Drawing.Size(444, 453);
             this.Controls.Add(this.chkJoystickEnabled);
             this.Controls.Add(this.btnConfigureJoystick);
             this.Controls.Add(this.nudJoystickNumber);
