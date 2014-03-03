@@ -1,0 +1,5 @@
+/bin
+/DS4_PSO2/obj
+/HidLibrary/obj
+/LibDualShock4/obj
+*.suo
