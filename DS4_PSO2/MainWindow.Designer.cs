@@ -126,11 +126,14 @@
             this.btnConfigureJoystick.TabIndex = 5;
             this.btnConfigureJoystick.Text = "Configure";
             this.btnConfigureJoystick.UseVisualStyleBackColor = true;
+            this.btnConfigureJoystick.Click += new System.EventHandler(this.btnConfigureJoystick_Click);
             // 
             // chkJoystickEnabled
             // 
             this.chkJoystickEnabled.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
             this.chkJoystickEnabled.Appearance = System.Windows.Forms.Appearance.Button;
+            this.chkJoystickEnabled.Checked = true;
+            this.chkJoystickEnabled.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkJoystickEnabled.FlatStyle = System.Windows.Forms.FlatStyle.System;
             this.chkJoystickEnabled.Location = new System.Drawing.Point(16, 448);
             this.chkJoystickEnabled.Name = "chkJoystickEnabled";
