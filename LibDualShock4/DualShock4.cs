@@ -243,19 +243,20 @@ namespace Squared.DualShock4 {
     }
 
     public class DualShock4Sensors {
-        public struct Reading {
-            public float Value;
+        private readonly float[] Readings = new float[6];
 
-            public override string ToString () {
-                return String.Format("{0:+000.00;-000.00}", Value);
+        public float this[int index] {
+            get {
+                return Readings[index];
+            }
+            private set {
+                Readings[index] = value;
             }
         }
 
-        private readonly Reading[] Readings = new Reading[6];
-
-        public Reading this[int index] {
+        public float this[DualShock4Sensor sensor] {
             get {
-                return Readings[index];
+                return Readings[(int)sensor];
             }
         }
 
@@ -263,16 +264,19 @@ namespace Squared.DualShock4 {
             var sb = new StringBuilder();
 
             for (var i = 0; i < Readings.Length; i++) {
-                sb.AppendFormat("{0}: {1}\r\n", (DualShock4Sensor)i, Readings[i]);
+                sb.AppendFormat("{0}: {1:+00.000;-00.000}\r\n", (DualShock4Sensor)i, Readings[i]);
             }
 
             return sb.ToString();
         }
 
+        // Sensor readings effectively have a range of [-127, 128] with the fractional
+        //  part encoded in a second unsigned byte.
         internal float DecodeHighLow (sbyte high, byte low) {
-            float result = (int)high;
+            float result = high;
 
-            result += (float)((low / 255f) * Math.Sign(result));
+            // FIXME: Not totally sure this is right.
+            result += ((low / 255f) * Math.Sign(result));
 
             return result;
         }
@@ -286,9 +290,9 @@ namespace Squared.DualShock4 {
                 for (var i = 0; i < Readings.Length; i++) {
                     int localOffset = (offset) + (i * 2);
 
-                    Readings[i] = new Reading {
-                        Value = DecodeHighLow(pSigned[localOffset + 1], buffer[localOffset])
-                    };
+                    // The order of the sensor reading bytes is opposite what you'd expect
+                    //  on x86, probably because this is USB, so we grab hi/lo in reverse.
+                    this[i] = DecodeHighLow(pSigned[localOffset + 1], buffer[localOffset]);
                 }
             }
         }

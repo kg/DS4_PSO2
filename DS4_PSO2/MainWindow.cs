@@ -74,7 +74,7 @@ namespace DS4_PSO2 {
                     var sliders = new[] { tbGyroX, tbGyroY, tbGyroZ, tbAccelX, tbAccelY, tbAccelZ };
                     for (var i = 0; i < sliders.Length; i++) {
                         try {
-                            sliders[i].Value = (int)Math.Round(CurrentDualShock.Sensors[i].Value * 10);
+                            sliders[i].Value = (int)Math.Round(CurrentDualShock.Sensors[i] * 10);
                         } catch {
                         }
                     }
