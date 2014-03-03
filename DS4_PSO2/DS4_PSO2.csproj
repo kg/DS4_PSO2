@@ -92,6 +92,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="devcon\devcon-x64.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="devcon\devcon-x86.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <Content Include="icon.ico" />
     <None Include="vJoyInterface.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>

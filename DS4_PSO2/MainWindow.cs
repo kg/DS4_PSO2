@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -15,6 +16,7 @@ namespace DS4_PSO2 {
         uint? JoystickToUse = null;
         DualShock4 CurrentDualShock = null;
         Thread UpdaterThread;
+        bool JoystickFailed;
 
         private readonly TrackBar[] SliderBySensorIndex;
 
@@ -80,6 +82,7 @@ namespace DS4_PSO2 {
                         if (!InitJoystick(activeJoystick.Value)) {
                             Console.WriteLine("Could not initialize joystick #{0}", activeJoystick.Value);
                             activeJoystick = null;
+                            JoystickFailed = true;
                         } else {
                             Console.WriteLine("Initialized joystick #{0}", activeJoystick.Value);
                         }
@@ -239,6 +242,11 @@ namespace DS4_PSO2 {
             }
 
             lock (this) {
+                if (JoystickFailed) {
+                    JoystickFailed = false;
+                    chkJoystickEnabled.Checked = false;
+                }
+
                 if (chkJoystickEnabled.Checked)
                     JoystickToUse = (uint)nudJoystickNumber.Value;
                 else
@@ -288,11 +296,6 @@ namespace DS4_PSO2 {
             }
         }
 
-        private void niTrayIcon_Click (object sender, EventArgs e) {
-            this.ShowInTaskbar = true;
-            this.WindowState = FormWindowState.Normal;
-        }
-
         private void btnConfigureJoystick_Click (object sender, EventArgs e) {
             var descriptor = new byte[] { 
                 0x05, 0x01, 0x15, 0x00, 0x09, 0x04, 0xa1, 0x01, 0x05, 0x01, 0x85, 0x01, 0x09, 0x01, 0x15, 0x00, 0x26,
@@ -308,11 +311,71 @@ namespace DS4_PSO2 {
 
             var deviceKey = String.Format("Device{0:00}", nudJoystickNumber.Value);
 
+            // Write configuration into registry
             using (var vjoy = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\services\vjoy", true))
             using (var parameters = vjoy.CreateSubKey("Parameters"))
             using (var device = parameters.CreateSubKey(deviceKey)) {
                 device.SetValue("HidReportDesctiptor", descriptor, RegistryValueKind.Binary);
                 device.SetValue("HidReportDesctiptorSize", descriptorSize, RegistryValueKind.DWord);
+            }
+
+            var assemblyPath = GetPathOfAssembly(Assembly.GetExecutingAssembly());
+            var assemblyFolder = Path.GetDirectoryName(assemblyPath);
+
+            // Force restart vjoy device(s) to apply configuration
+            {
+                var psi = new ProcessStartInfo(
+                    Path.Combine(assemblyFolder, "devcon", "devcon-x86.exe"), 
+                    @"restart ""root\VID_1234&PID_BEAD&REV_0202"
+                ) {
+                };
+
+                using (var process = Process.Start(psi))
+                    ;
+            }
+
+            {
+                var psi = new ProcessStartInfo(
+                    Path.Combine(assemblyFolder, "devcon", "devcon-x64.exe"),
+                    @"restart ""root\VID_1234&PID_BEAD&REV_0202"
+                ) {
+                };
+
+                using (var process = Process.Start(psi))
+                    ;
+            }
+        }
+
+        private static string GetPathOfAssembly (Assembly assembly) {
+            var uri = new Uri(assembly.CodeBase);
+            var result = Uri.UnescapeDataString(uri.AbsolutePath);
+
+            if (String.IsNullOrWhiteSpace(result))
+                result = assembly.Location;
+
+            result = result.Replace('/', System.IO.Path.DirectorySeparatorChar);
+
+            return result;
+        }
+
+        private void MainWindow_FormClosing (object sender, FormClosingEventArgs e) {
+            niTrayIcon.Visible = false;
+        }
+
+        private void exitToolStripMenuItem_Click (object sender, EventArgs e) {
+            niTrayIcon.Visible = false;
+            this.Close();
+        }
+
+        private void showToolStripMenuItem_Click (object sender, EventArgs e) {
+            this.WindowState = FormWindowState.Normal;
+            this.ShowInTaskbar = true;
+        }
+
+        private void niTrayIcon_MouseDown (object sender, MouseEventArgs e) {
+            if (e.Button == MouseButtons.Left) {
+                this.ShowInTaskbar = true;
+                this.WindowState = FormWindowState.Normal;
             }
         }
     }

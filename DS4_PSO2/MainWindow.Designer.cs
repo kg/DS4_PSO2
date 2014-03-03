@@ -43,6 +43,10 @@
             this.tbGyroX = new System.Windows.Forms.TrackBar();
             this.ttToolTips = new System.Windows.Forms.ToolTip(this.components);
             this.niTrayIcon = new System.Windows.Forms.NotifyIcon(this.components);
+            this.cmsTrayIcon = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.showToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripMenuItem1 = new System.Windows.Forms.ToolStripSeparator();
+            this.exitToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.nudJoystickNumber)).BeginInit();
             this.pnlSensors.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.tbAccelZ)).BeginInit();
@@ -51,6 +55,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.tbGyroZ)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.tbGyroY)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.tbGyroX)).BeginInit();
+            this.cmsTrayIcon.SuspendLayout();
             this.SuspendLayout();
             // 
             // label1
@@ -250,9 +255,38 @@
             // 
             // niTrayIcon
             // 
+            this.niTrayIcon.ContextMenuStrip = this.cmsTrayIcon;
             this.niTrayIcon.Icon = ((System.Drawing.Icon)(resources.GetObject("niTrayIcon.Icon")));
             this.niTrayIcon.Text = "DualShock 4 for PSO2";
-            this.niTrayIcon.Click += new System.EventHandler(this.niTrayIcon_Click);
+            this.niTrayIcon.MouseDown += new System.Windows.Forms.MouseEventHandler(this.niTrayIcon_MouseDown);
+            // 
+            // cmsTrayIcon
+            // 
+            this.cmsTrayIcon.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.showToolStripMenuItem,
+            this.toolStripMenuItem1,
+            this.exitToolStripMenuItem});
+            this.cmsTrayIcon.Name = "cmsTrayIcon";
+            this.cmsTrayIcon.Size = new System.Drawing.Size(104, 54);
+            // 
+            // showToolStripMenuItem
+            // 
+            this.showToolStripMenuItem.Name = "showToolStripMenuItem";
+            this.showToolStripMenuItem.Size = new System.Drawing.Size(103, 22);
+            this.showToolStripMenuItem.Text = "&Show";
+            this.showToolStripMenuItem.Click += new System.EventHandler(this.showToolStripMenuItem_Click);
+            // 
+            // toolStripMenuItem1
+            // 
+            this.toolStripMenuItem1.Name = "toolStripMenuItem1";
+            this.toolStripMenuItem1.Size = new System.Drawing.Size(100, 6);
+            // 
+            // exitToolStripMenuItem
+            // 
+            this.exitToolStripMenuItem.Name = "exitToolStripMenuItem";
+            this.exitToolStripMenuItem.Size = new System.Drawing.Size(103, 22);
+            this.exitToolStripMenuItem.Text = "E&xit";
+            this.exitToolStripMenuItem.Click += new System.EventHandler(this.exitToolStripMenuItem_Click);
             // 
             // MainWindow
             // 
@@ -271,6 +305,7 @@
             this.MaximizeBox = false;
             this.Name = "MainWindow";
             this.Text = "DualShock 4 for PSO2";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainWindow_FormClosing);
             ((System.ComponentModel.ISupportInitialize)(this.nudJoystickNumber)).EndInit();
             this.pnlSensors.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)(this.tbAccelZ)).EndInit();
@@ -279,6 +314,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.tbGyroZ)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.tbGyroY)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.tbGyroX)).EndInit();
+            this.cmsTrayIcon.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -304,6 +340,10 @@
         private System.Windows.Forms.TrackBar tbAccelX;
         private System.Windows.Forms.ToolTip ttToolTips;
         private System.Windows.Forms.NotifyIcon niTrayIcon;
+        private System.Windows.Forms.ContextMenuStrip cmsTrayIcon;
+        private System.Windows.Forms.ToolStripMenuItem showToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exitToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripMenuItem1;
     }
 }
 
