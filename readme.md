@@ -8,7 +8,7 @@ This repository also contains a reusable library for interacting with DualShock 
 Requirements
 ===
 
-Joystick emulation is done using the vJoy driver, so you'll need to install that and enable at least one joystick. The vJoy joystick can be configured by pressing the 'Configure' button in the DS4_PSO2 main window.
+Joystick emulation is done using the [vJoy driver](http://vjoystick.sourceforge.net), so you'll need to install that and enable at least one joystick. The vJoy joystick can be configured by pressing the 'Configure' button in the DS4_PSO2 main window.
 
 Download
 ===
