@@ -10,6 +10,11 @@ Requirements
 
 Joystick emulation is done using the vJoy driver, so you'll need to install that and enable at least one joystick. The vJoy joystick can be configured by pressing the 'Configure' button in the DS4_PSO2 main window.
 
+Download
+===
+
+See the [Downloads](https://github.com/kg/DS4_PSO2/wiki/Downloads) page.
+
 Features
 ===
 
