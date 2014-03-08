@@ -158,7 +158,13 @@ namespace DS4_PSO2 {
         }
 
         public void Repaint () {
+            if (BackingGraphics == null)
+                return;
+
             BackingGraphics.Clear(Color.Transparent);
+
+            using (var pen = new Pen(Color.FromArgb(31, Color.Black), 2))
+                BackingGraphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
 
             if (TouchHistory.Count > 2) {
                 for (var i = 1; i < TouchHistory.Count; i++) {
@@ -248,6 +254,32 @@ namespace DS4_PSO2 {
             }
 
             Repaint();
+        }
+
+        private void GestureOverlay_Resize (object sender, EventArgs e) {
+            if (WindowState != FormWindowState.Normal)
+                WindowState = FormWindowState.Normal;
+
+            Repaint();
+        }
+
+        private void TopmostHackTimer_Tick (object sender, EventArgs e) {
+            // Topmost is totally busted on Windows - I think maybe a bad interaction
+            //  with other windows that have the flag set, like fullscreen games?
+
+            TopMost = false;
+            Visible = false;
+
+            BeginInvoke((Action) (() => {
+                TopMost = true;
+                Visible = true;
+
+                Repaint();
+            }));
+        }
+
+        protected override bool ShowWithoutActivation {
+            get { return true; }
         }
     }
 }

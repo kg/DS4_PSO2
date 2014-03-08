@@ -36,7 +36,7 @@ namespace DS4_PSO2 {
         };
 
         const float AxisThreshold = 0.4f;
-        const float MinimumGestureLength = 60f;
+        const float MinimumGestureLength = 80f;
         const float GestureAngleDeadzoneDegrees = 32f;
         const float GesturePressDuration = 75f;
         const float GestureConfirmDelay = 900f;
@@ -297,11 +297,23 @@ namespace DS4_PSO2 {
         private void tmrUpdate_Tick (object sender, EventArgs e) {
             var hidden = false;
 
-            if ((this.WindowState == FormWindowState.Minimized) || (!this.Visible)) {
-                this.ShowInTaskbar = false;
+            if ((this.WindowState == FormWindowState.Minimized) || !this.Visible) {
+                if (ShowInTaskbar)
+                    ShowInTaskbar = false;
+                if (TopMost)
+                    TopMost = false;
+
                 niTrayIcon.Visible = true;
                 hidden = true;
             } else {
+                if (WindowState != FormWindowState.Normal)
+                    WindowState = FormWindowState.Normal;
+
+                if (!ShowInTaskbar)
+                    ShowInTaskbar = true;
+                if (!TopMost)
+                    TopMost = true;
+
                 niTrayIcon.Visible = false;
             }
 
@@ -439,14 +451,14 @@ namespace DS4_PSO2 {
         }
 
         private void showToolStripMenuItem_Click (object sender, EventArgs e) {
-            this.WindowState = FormWindowState.Normal;
-            this.ShowInTaskbar = true;
+            if (WindowState != FormWindowState.Normal)
+                WindowState = FormWindowState.Normal;
         }
 
         private void niTrayIcon_MouseDown (object sender, MouseEventArgs e) {
             if (e.Button == MouseButtons.Left) {
-                this.ShowInTaskbar = true;
-                this.WindowState = FormWindowState.Normal;
+                if (WindowState != FormWindowState.Normal)
+                    WindowState = FormWindowState.Normal;
             }
         }
 
