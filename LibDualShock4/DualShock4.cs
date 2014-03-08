@@ -186,6 +186,7 @@ namespace Squared.DualShock4 {
             public byte Id;
             public int X, Y;
             public int StartX, StartY;
+            public DateTime StartWhen, When;
 
             public override string ToString () {
                 return String.Format("{3} #{0} @ {1:0000}, {2:0000} (start {4:0000} {5:0000})", Id, X, Y, IsActive ? "active" : "inactive", StartX, StartY);
@@ -232,6 +233,8 @@ namespace Squared.DualShock4 {
 
             Array.Copy(TouchInfos, PreviousTouchInfos, TouchInfos.Length);
 
+            var now = DateTime.UtcNow;
+
             for (var i = 0; i < MaxTouches; i++) {
                 var localOffset = offset + (i * touchDataSize);
                 var isActive = (buffer[localOffset] & 0x80) == 0;
@@ -239,6 +242,7 @@ namespace Squared.DualShock4 {
                 var touchX = buffer[localOffset + 1] + ((buffer[localOffset + 2] & 0xF) * 255);
                 var touchY = ((buffer[localOffset + 2] & 0xF0) >> 4) + (buffer[localOffset + 3] * 16);
                 int startX, startY;
+                DateTime startWhen;
 
                 if (
                     (PreviousTouchInfos[i].Id == touchId) && 
@@ -246,9 +250,11 @@ namespace Squared.DualShock4 {
                 ) {
                     startX = PreviousTouchInfos[i].StartX;
                     startY = PreviousTouchInfos[i].StartY;
+                    startWhen = PreviousTouchInfos[i].StartWhen;
                 } else {
                     startX = touchX;
                     startY = touchY;
+                    startWhen = now;
                 }
 
                 TouchInfos[i] = new TouchInfo {
@@ -257,7 +263,9 @@ namespace Squared.DualShock4 {
                     X = touchX,
                     Y = touchY,
                     StartX = startX,
-                    StartY = startY
+                    StartY = startY,
+                    StartWhen = startWhen,
+                    When = now
                 };
 
                 if (isActive) {

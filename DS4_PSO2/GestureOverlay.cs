@@ -160,19 +160,6 @@ namespace DS4_PSO2 {
         public void Repaint () {
             BackingGraphics.Clear(Color.Transparent);
 
-            var borderRect = this.ClientRectangle;
-            var fillRect = borderRect;
-            fillRect.Inflate(-1, -1);
-
-            using (var fillBrush = new SolidBrush(Color.FromArgb(63, 0, 0, 0)))
-                BackingGraphics.FillRectangle(fillBrush, fillRect);
-
-            borderRect.Width -= 1;
-            borderRect.Height -= 1;
-
-            using (var outlinePen = new Pen(Color.FromArgb(220, 63, 63, 63)))
-                BackingGraphics.DrawRectangle(outlinePen, borderRect);
-
             if (TouchHistory.Count > 2) {
                 for (var i = 1; i < TouchHistory.Count; i++) {
                     var prior = TouchHistory[i - 1];
@@ -193,8 +180,11 @@ namespace DS4_PSO2 {
 
                 var last = TouchHistory[TouchHistory.Count - 1];
                 if (last.IsActive) {
+                    using (var pen = new Pen(Color.White, 2f))
+                        BackingGraphics.DrawLine(pen, last.StartX / 5f, last.StartY / 5f, last.X / 5f, last.Y / 5f);
+
                     using (var brush = new SolidBrush(Color.White))
-                        BackingGraphics.FillEllipse(brush, (last.X / 5f) - 1.5f, (last.Y / 5f) - 1.5f, 3f, 3f);
+                        BackingGraphics.FillEllipse(brush, (last.X / 5f) - 3f, (last.Y / 5f) - 3f, 6f, 6f);
                 }
             }
 
@@ -213,8 +203,11 @@ namespace DS4_PSO2 {
                     else if (alpha > 255)
                         alpha = 255;
 
-                    using (var brush = new SolidBrush(Color.FromArgb(255 - alpha, Color.White)))
+                    using (var shadowBrush = new SolidBrush(Color.FromArgb( 255 - alpha, Color.Black)))
+                    using (var brush = new SolidBrush(Color.FromArgb(255 - alpha, Color.White))) {
+                        BackingGraphics.DrawString(te.Text, Font, shadowBrush, 1, y2 + 1);
                         BackingGraphics.DrawString(te.Text, Font, brush, 0, y2);
+                    }
                 }
             }
 

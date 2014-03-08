@@ -40,6 +40,8 @@ namespace DS4_PSO2 {
         const float GestureAngleDeadzoneDegrees = 32f;
         const float GesturePressDuration = 75f;
         const float GestureConfirmDelay = 900f;
+        const float GestureRepeatStartDelay = 525f;
+        const float GestureRepeatInterval = 325f;
 
         const DualShock4Button GestureConfirmButton = DualShock4Button.Circle;
 
@@ -47,7 +49,7 @@ namespace DS4_PSO2 {
         const int AfterGestureButtonBase = 16;
 
         string MostRecentGestureText = null;
-        DateTime MostRecentGestureTime;
+        DateTime MostRecentTouchUpTime;
         bool GestureConfirmActive;
 
         public MainWindow () {
@@ -159,7 +161,7 @@ namespace DS4_PSO2 {
             var current = CurrentDualShock.Touchpad[0];
 
             // We might miss swipes if our refresh interval is too slow
-            if (previous.IsActive && !current.IsActive) {
+            if (previous.IsActive) {
                 // FIXME: Read it from previous instead?
                 var deltaX = current.X - current.StartX;
                 var deltaY = current.Y - current.StartY;
@@ -191,25 +193,40 @@ namespace DS4_PSO2 {
 
                 var longEnough = (gestureLength >= MinimumGestureLength);
 
+                var swipeEnded = !current.IsActive;
+
                 if (mappedAngle.HasValue && longEnough) {
-                    Console.WriteLine("Swipe at angle {0:000.0} mapped to index {1}", gestureAngle, mappedAngle.Value);
+                    var gestureAge = current.When - current.StartWhen;
+                    var repeatActive = gestureAge.TotalMilliseconds >= GestureRepeatStartDelay;
 
-                    gestureTimes[mappedAngle.Value] = now;
-                    MostRecentGestureTime = now;
-                    MostRecentGestureText = gestureAngleNames[mappedAngle.Value];
-                } else {
-                    Console.WriteLine(
-                        "Touch went from {0:0000},{1:0000} to {2:0000},{3:0000} (length {4})",
-                        current.StartX, current.StartY,
-                        current.X, current.Y,
-                        gestureLength                    
-                    );
+                    if (swipeEnded) {
+                        // Suppress the final swipe if repeat is active. Otherwise, 
+                        //  letting off the touch suddenly will trigger a sudden motion.
+                        if (!repeatActive) {
+                            gestureTimes[mappedAngle.Value] = now;
+                            MostRecentGestureText = gestureAngleNames[mappedAngle.Value];
+                        }
+                    } else if (repeatActive) {
+                        var repeatTimeOffset = (gestureAge.TotalMilliseconds - GestureRepeatStartDelay) / GestureRepeatInterval;
+                        repeatTimeOffset = GestureRepeatStartDelay + (Math.Floor(repeatTimeOffset) * GestureRepeatInterval);
+                        var when = current.StartWhen + TimeSpan.FromMilliseconds(repeatTimeOffset);
 
+                        // We only want to trigger a new gesture if the time doesn't match, so we don't spam the log
+                        if (gestureTimes[mappedAngle.Value] != when) {
+                            gestureTimes[mappedAngle.Value] = when;
+                            MostRecentGestureText = gestureAngleNames[mappedAngle.Value] + " (repeat)";
+                        }
+                    }
+
+                } else if (swipeEnded) {
                     if (longEnough)
                         MostRecentGestureText = String.Format("Unknown ({0:000.0} degrees)", gestureAngle);
                     else
                         MostRecentGestureText = String.Format("Too short ({0:000.0} px)", gestureLength);
                 }
+
+                if (swipeEnded)
+                    MostRecentTouchUpTime = now;
             }
         }
 
@@ -245,7 +262,7 @@ namespace DS4_PSO2 {
             // Then shortly after the gesture button press we press a confirmation button
             // If you perform the same gesture again, it resets the timer for the confirmation
             //  so that you can swipe multiple times before one confirmation happens
-            delta = (now - MostRecentGestureTime);
+            delta = (now - MostRecentTouchUpTime);
 
             GestureConfirmActive = (delta.TotalMilliseconds >= GestureConfirmDelay) &&
                 (delta.TotalMilliseconds <= GestureConfirmDelay + GesturePressDuration);
@@ -278,10 +295,12 @@ namespace DS4_PSO2 {
         }
 
         private void tmrUpdate_Tick (object sender, EventArgs e) {
+            var hidden = false;
+
             if ((this.WindowState == FormWindowState.Minimized) || (!this.Visible)) {
                 this.ShowInTaskbar = false;
                 niTrayIcon.Visible = true;
-                return;
+                hidden = true;
             } else {
                 niTrayIcon.Visible = false;
             }
@@ -297,24 +316,26 @@ namespace DS4_PSO2 {
                 else
                     JoystickToUse = null;
 
-                if (CurrentDualShock == null) {
-                    txtDualShock4Status.Text = "Not connected";
-                } else {
-                    txtDualShock4Status.Text = "Connected";
+                if (!hidden) {
+                    if (CurrentDualShock == null) {
+                        txtDualShock4Status.Text = "Not connected";
+                    } else {
+                        txtDualShock4Status.Text = "Connected";
 
-                    txtDualShock4State.Text = String.Format(
-                        "Axes:\r\n{0}\r\nDPad: {1}\r\nButtons:\r\n{2}\r\n{3}\r\n{4}",
-                        CurrentDualShock.Axes,
-                        CurrentDualShock.DPad,
-                        CurrentDualShock.Buttons,
-                        CurrentDualShock.Touchpad,
-                        CurrentDualShock.Sensors
-                    );
+                        txtDualShock4State.Text = String.Format(
+                            "Axes:\r\n{0}\r\nDPad: {1}\r\nButtons:\r\n{2}\r\n{3}\r\n{4}",
+                            CurrentDualShock.Axes,
+                            CurrentDualShock.DPad,
+                            CurrentDualShock.Buttons,
+                            CurrentDualShock.Touchpad,
+                            CurrentDualShock.Sensors
+                        );
 
-                    for (var i = 0; i < SliderBySensorIndex.Length; i++) {
-                        try {
-                            SliderBySensorIndex[i].Value = (int)Math.Round(CurrentDualShock.Sensors[i] * 10);
-                        } catch {
+                        for (var i = 0; i < SliderBySensorIndex.Length; i++) {
+                            try {
+                                SliderBySensorIndex[i].Value = (int)Math.Round(CurrentDualShock.Sensors[i] * 10);
+                            } catch {
+                            }
                         }
                     }
                 }
