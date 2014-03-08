@@ -14,15 +14,6 @@ using Squared.DualShock4;
 
 namespace DS4_PSO2 {
     public partial class GestureOverlay : Form {
-        [DllImport("user32.dll", SetLastError = true)]
-        static extern int GetWindowLong (IntPtr hWnd, int nIndex);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        static extern int SetWindowLong (IntPtr hWnd, int nIndex, int dwNewLong);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        static extern int SetLayeredWindowAttributes (IntPtr hWnd, uint colorKey, byte alpha, int flags);
-
         [DllImportAttribute("user32.dll")]
         public extern static IntPtr GetDC (IntPtr handle);
 
@@ -103,12 +94,24 @@ namespace DS4_PSO2 {
             SetStyle(ControlStyles.UserPaint, true);
         }
 
+        protected override CreateParams CreateParams {
+            get { 
+                var p = base.CreateParams;
+
+                const int WS_POPUP = -2147483648; // 0x80000000
+                const int WS_EX_TOOLWINDOW = 0x00000080;
+                const int WS_EX_LAYERED = 0x80000;
+                const int WS_EX_TRANSPARENT = 0x20;
+
+                p.Style |= WS_POPUP;
+                p.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT;
+
+                return p;
+            }
+        }
+
         protected override void CreateHandle() {
             base.CreateHandle();
-
-            int initialStyle = GetWindowLong(Handle, -20);
-            SetWindowLong(Handle, -20, initialStyle | 0x80000 | 0x20);
-            // SetWindowLong(Handle, -20, initialStyle | 0x80000);
 
             var bi = new BITMAPINFO {
                 biSize = Marshal.SizeOf(typeof(BITMAPINFO)),
@@ -266,16 +269,16 @@ namespace DS4_PSO2 {
         private void TopmostHackTimer_Tick (object sender, EventArgs e) {
             // Topmost is totally busted on Windows - I think maybe a bad interaction
             //  with other windows that have the flag set, like fullscreen games?
-
-            TopMost = false;
-            Visible = false;
+            
+            /*
+            Hide();
 
             BeginInvoke((Action) (() => {
-                TopMost = true;
-                Visible = true;
+                Show();
 
                 Repaint();
             }));
+             */
         }
 
         protected override bool ShowWithoutActivation {

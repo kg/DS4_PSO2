@@ -29,7 +29,7 @@
             // 
             // TopmostHackTimer
             // 
-            this.TopmostHackTimer.Interval = 500;
+            this.TopmostHackTimer.Interval = 5000;
             this.TopmostHackTimer.Tick += new System.EventHandler(this.TopmostHackTimer_Tick);
             // 
             // GestureOverlay
