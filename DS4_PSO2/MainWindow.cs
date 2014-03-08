@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -13,6 +14,8 @@ using Squared.DualShock4;
 
 namespace DS4_PSO2 {
     public partial class MainWindow : Form {
+        GestureOverlay GestureOverlay;
+
         uint? JoystickToUse = null;
         DualShock4 CurrentDualShock = null;
         Thread UpdaterThread;
@@ -33,8 +36,8 @@ namespace DS4_PSO2 {
         };
 
         const float AxisThreshold = 0.4f;
-        const float MinimumGestureLength = 40f;
-        const float GestureAngleDeadzoneDegrees = 28f;
+        const float MinimumGestureLength = 60f;
+        const float GestureAngleDeadzoneDegrees = 32f;
         const float GesturePressDuration = 75f;
         const float GestureConfirmDelay = 900f;
 
@@ -43,6 +46,7 @@ namespace DS4_PSO2 {
         const int GestureButtonBase = 12;
         const int AfterGestureButtonBase = 16;
 
+        string MostRecentGestureText = null;
         DateTime MostRecentGestureTime;
         bool GestureConfirmActive;
 
@@ -56,6 +60,8 @@ namespace DS4_PSO2 {
             UpdaterThread.Start();
 
             SliderBySensorIndex = new[] { tbGyroX, tbGyroY, tbGyroZ, tbAccelX, tbAccelY, tbAccelZ };
+
+            GestureOverlay = new GestureOverlay();
         }
 
         private void UpdaterThreadFunc () {
@@ -97,6 +103,10 @@ namespace DS4_PSO2 {
                             Console.WriteLine("Initialized joystick #{0}", activeJoystick.Value);
                         }
                     }
+                }
+
+                if (CurrentDualShock != null) {
+                    HandleGestures(gestureTimes);
                 }
 
                 if (activeJoystick.HasValue && (CurrentDualShock != null))
@@ -160,6 +170,7 @@ namespace DS4_PSO2 {
                     gestureAngle += 360;
 
                 var possibleGestureAngles = new[] { 0f, 90f, 180f, 270f, 360f };
+                var gestureAngleNames = new[] { "Right", "Down", "Left", "Up" };
                 int? mappedAngle = null;
                 float mappedAngleDistance = 99999;
 
@@ -178,11 +189,14 @@ namespace DS4_PSO2 {
                     }
                 }
 
-                if (mappedAngle.HasValue && (gestureLength >= MinimumGestureLength)) {
+                var longEnough = (gestureLength >= MinimumGestureLength);
+
+                if (mappedAngle.HasValue && longEnough) {
                     Console.WriteLine("Swipe at angle {0:000.0} mapped to index {1}", gestureAngle, mappedAngle.Value);
 
                     gestureTimes[mappedAngle.Value] = now;
                     MostRecentGestureTime = now;
+                    MostRecentGestureText = gestureAngleNames[mappedAngle.Value];
                 } else {
                     Console.WriteLine(
                         "Touch went from {0:0000},{1:0000} to {2:0000},{3:0000} (length {4})",
@@ -190,6 +204,11 @@ namespace DS4_PSO2 {
                         current.X, current.Y,
                         gestureLength                    
                     );
+
+                    if (longEnough)
+                        MostRecentGestureText = String.Format("Unknown ({0:000.0} degrees)", gestureAngle);
+                    else
+                        MostRecentGestureText = String.Format("Too short ({0:000.0} px)", gestureLength);
                 }
             }
         }
@@ -199,8 +218,6 @@ namespace DS4_PSO2 {
             //  but I'm too lazy to get that right currently.
 
             var now = DateTime.UtcNow;
-
-            HandleGestures(gestureTimes);
 
             VJoy.JoystickState state = default(VJoy.JoystickState);
 
@@ -300,6 +317,11 @@ namespace DS4_PSO2 {
                         } catch {
                         }
                     }
+                }
+
+                if (GestureOverlay.Visible && (CurrentDualShock != null)) {
+                    GestureOverlay.Update(CurrentDualShock, MostRecentGestureText);
+                    MostRecentGestureText = null;
                 }
             }
         }
@@ -405,6 +427,60 @@ namespace DS4_PSO2 {
                 this.ShowInTaskbar = true;
                 this.WindowState = FormWindowState.Normal;
             }
+        }
+
+        private void DoUpdateCheck () {
+            ThreadPool.QueueUserWorkItem((_) => {
+                try {
+                    using (var wc = new WebClient()) {
+                        var versionString = wc.DownloadString("http://luminance.org/ds4pso2/latest_version.txt");
+                        MessageBox.Show(versionString);
+                        var parsedVersion = Version.Parse(versionString);
+                        var currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
+
+                        if (parsedVersion > currentVersion) {
+                            BeginInvoke(
+                                (Action)(() => ShowUpdateNotice(parsedVersion, currentVersion))
+                            );
+                        }
+                    }
+                } catch (Exception exc) {
+                    BeginInvoke(
+                        (Action)(() => ShowUpdateFailure(exc))
+                    );
+                }
+            });
+        }
+
+        private void ShowUpdateNotice (Version newVersion, Version currentVersion) {
+            var choice = MessageBox.Show(
+                this, String.Format(
+                    "A new version is available. You are running {0} and the latest version is {1}. Would you like to download the new version?",
+                    currentVersion, newVersion
+                ), "Update available", MessageBoxButtons.YesNo
+            );
+
+            if (choice == DialogResult.Yes)
+                Process.Start("https://github.com/kg/DS4_PSO2/wiki/Downloads");
+        }
+
+        private void ShowUpdateFailure (Exception exception) {
+            MessageBox.Show(this, exception.ToString(), "Update check failed");
+        }
+
+        private void MainWindow_Shown (object sender, EventArgs e) {
+            // DoUpdateCheck();
+        }
+
+        private void GestureOverlayMode_CheckedChanged (object sender, EventArgs e) {
+            UpdateGestureOverlay();
+        }
+
+        private void UpdateGestureOverlay () {
+            if (NoGestureOverlay.Checked)
+                GestureOverlay.Hide();
+            else
+                GestureOverlay.Show();
         }
     }
 }
