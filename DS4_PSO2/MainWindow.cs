@@ -186,6 +186,7 @@ namespace DS4_PSO2 {
             var now = DateTime.UtcNow;
             var previous = CurrentDualShock.Touchpad.GetPreviousState(0);
             var current = CurrentDualShock.Touchpad[0];
+            var invalidGesture = true;
 
             // We might miss swipes if our refresh interval is too slow
             if (previous.IsActive) {
@@ -225,6 +226,8 @@ namespace DS4_PSO2 {
                 var repeatActive = gestureAge.TotalMilliseconds >= GestureRepeatStartDelay;
 
                 if (mappedAngle.HasValue && longEnough) {
+                    invalidGesture = false;
+
                     if (swipeEnded) {
                         // Suppress the final swipe if repeat is active. Otherwise, 
                         //  letting off the touch suddenly will trigger a sudden motion.
@@ -254,7 +257,7 @@ namespace DS4_PSO2 {
                         MostRecentGestureText = String.Format("Too short ({0:000.0} px)", gestureLength);
                 }
 
-                if (swipeEnded) {
+                if (swipeEnded && !invalidGesture) {
                     if (repeatActive) {
                         MostRecentHeldTouchUpTime = now;
                     } else {
