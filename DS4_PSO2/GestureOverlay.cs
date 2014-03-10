@@ -44,6 +44,10 @@ namespace DS4_PSO2 {
         static extern IntPtr CreateDIBSection (IntPtr hdc, [In] ref BITMAPINFO pbmi,
             uint pila, out IntPtr ppvBits, IntPtr hSection, uint dwOffset);
 
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetWindowPos (IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
         [StructLayout(LayoutKind.Sequential)]
         public struct BITMAPINFO {
           public Int32 biSize;
@@ -71,9 +75,17 @@ namespace DS4_PSO2 {
             public string Text;
         }
 
+        static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        static readonly IntPtr HWND_TOP = new IntPtr(0);
+        static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
+
         const int ULW_ALPHA = 2;
         const byte AC_SRC_OVER = 0;
         const byte AC_SRC_ALPHA = 1;
+
+        const UInt32 SWP_NOSIZE = 0x01;
+        const UInt32 SWP_NOMOVE = 0x02;
 
         IntPtr ScreenDC, BitmapDC;
         IntPtr BackingBitmapBits;
@@ -102,9 +114,10 @@ namespace DS4_PSO2 {
                 const int WS_EX_TOOLWINDOW = 0x00000080;
                 const int WS_EX_LAYERED = 0x80000;
                 const int WS_EX_TRANSPARENT = 0x20;
+                const int WS_EX_TOPMOST = 0x00000008;
 
                 p.Style |= WS_POPUP;
-                p.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT;
+                p.ExStyle |= WS_EX_TOOLWINDOW | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST;
 
                 return p;
             }
@@ -136,18 +149,6 @@ namespace DS4_PSO2 {
             BackingGraphics.TextRenderingHint = TextRenderingHint.AntiAlias;
 
             BeginInvoke((Action)Repaint);
-        }
-
-        protected override void WndProc(ref Message m) {
-            const int WM_PAINT = 0xF;
-
-            /*
-            if (m.Msg == WM_PAINT) {
-                Repaint();
-                return;
-            } else
-             */
-                base.WndProc(ref m);
         }
 
         protected override void OnPaint(PaintEventArgs e) {
@@ -237,7 +238,11 @@ namespace DS4_PSO2 {
 
             BackingGraphics.Flush();
 
-            UpdateLayeredWindow(Handle, ScreenDC, ref pDest, ref pSize, BitmapDC, ref pSource, 0, ref blendFunction, 0x2);
+            UpdateLayeredWindow(
+                Handle, ScreenDC, ref pDest, ref pSize, 
+                BitmapDC, ref pSource, 
+                0, ref blendFunction, ULW_ALPHA
+            );
         }
 
         public void Update (DualShock4 controller, string latestText) {
@@ -269,16 +274,8 @@ namespace DS4_PSO2 {
         private void TopmostHackTimer_Tick (object sender, EventArgs e) {
             // Topmost is totally busted on Windows - I think maybe a bad interaction
             //  with other windows that have the flag set, like fullscreen games?
-            
-            /*
-            Hide();
 
-            BeginInvoke((Action) (() => {
-                Show();
-
-                Repaint();
-            }));
-             */
+            SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
         }
 
         protected override bool ShowWithoutActivation {

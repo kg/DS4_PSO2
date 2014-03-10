@@ -46,7 +46,6 @@
             this.ShowInTaskbar = false;
             this.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
             this.Text = "Gesture Overlay";
-            this.TopMost = true;
             this.Resize += new System.EventHandler(this.GestureOverlay_Resize);
             this.ResumeLayout(false);
 
