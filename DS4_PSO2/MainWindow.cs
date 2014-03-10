@@ -14,12 +14,36 @@ using Squared.DualShock4;
 
 namespace DS4_PSO2 {
     public partial class MainWindow : Form {
-        GestureOverlay GestureOverlay;
+        // The threshold for the L2/R2 axes being converted into digital buttons.
+        const float AxisThreshold = 0.4f;
 
-        uint? JoystickToUse = null;
-        DualShock4 CurrentDualShock = null;
-        Thread UpdaterThread;
-        bool JoystickFailed;
+        // The minimum distance (in touchpanel pixels) a swipe must go in order
+        //  to be considered a gesture.
+        const float MinimumGestureLength = 80f;
+        // The distance the swipe angle can be from one of the cardinal angles
+        //  used by the gesture system (in degrees) and still be considered valid.
+        const float GestureAngleRangeDegrees = 32f;
+        // How long fake button presses last.
+        const float GesturePressDuration = 60f;
+        // The delay before an automatic confirmation is triggered when you are
+        //  using individual swipes to scroll.
+        const float GestureConfirmDelay = 950f;
+        // How long you have to hold a touch before it begins repeating.
+        const float GestureRepeatStartDelay = 500f;
+        // How long elapses between repeats.
+        const float GestureRepeatInterval = 330f;
+
+        // The interval (in milliseconds) between joystick updates.
+        const int UpdateInterval = 10;
+
+        // What button is used for gesture confirmations.
+        // You can set this to null in order to disable confirmations.
+        static readonly DualShock4Button? GestureConfirmButton = DualShock4Button.Circle;
+
+        // The base index of the buttons used by gestures.
+        const int GestureButtonBase = 12;
+
+        const int AfterGestureButtonBase = 16;
 
         private readonly TrackBar[] SliderBySensorIndex;
 
@@ -35,22 +59,24 @@ namespace DS4_PSO2 {
             { DualShock4Direction.UpLeft, 31500 }
         };
 
-        const float AxisThreshold = 0.4f;
-        const float MinimumGestureLength = 80f;
-        const float GestureAngleDeadzoneDegrees = 32f;
-        const float GesturePressDuration = 75f;
-        const float GestureConfirmDelay = 900f;
-        const float GestureRepeatStartDelay = 525f;
-        const float GestureRepeatInterval = 325f;
+        GestureOverlay GestureOverlay;
 
-        const DualShock4Button GestureConfirmButton = DualShock4Button.Circle;
+        // The index of the currently active vJoy joystick
+        uint? JoystickToUse = null;
 
-        const int GestureButtonBase = 12;
-        const int AfterGestureButtonBase = 16;
+        // Indicates that something went wrong with vJoy
+        bool JoystickFailed;
 
-        string MostRecentGestureText = null;
-        DateTime MostRecentTouchUpTime;
+        // The currently active DualShock4 controller
+        DualShock4 CurrentDualShock = null;
+
+        Thread UpdaterThread;
+
+        // Gesture system state
+        string MostRecentGestureText;
+        DateTime MostRecentTouchUpTime, MostRecentHeldTouchUpTime;
         bool GestureConfirmActive;
+        bool ShownConfirmMessage;
 
         public MainWindow () {
             InitializeComponent();
@@ -64,6 +90,7 @@ namespace DS4_PSO2 {
             SliderBySensorIndex = new[] { tbGyroX, tbGyroY, tbGyroZ, tbAccelX, tbAccelY, tbAccelZ };
 
             GestureOverlay = new GestureOverlay();
+            niTrayIcon.Visible = true;
         }
 
         private void UpdaterThreadFunc () {
@@ -120,7 +147,7 @@ namespace DS4_PSO2 {
                 //  Thread.Sleep(0) doesn't sleep long enough.
                 // In practice as long as we don't sleep for more than 15ms, this should be fast enough
                 //  to pump a new update into the joystick for a game.
-                Thread.Sleep(15);
+                Thread.Sleep(UpdateInterval);
             }
         }
 
@@ -174,13 +201,13 @@ namespace DS4_PSO2 {
                 var possibleGestureAngles = new[] { 0f, 90f, 180f, 270f, 360f };
                 var gestureAngleNames = new[] { "Right", "Down", "Left", "Up" };
                 int? mappedAngle = null;
-                float mappedAngleDistance = 99999;
+                float mappedAngleDistance = float.MaxValue;
 
                 for (var i = 0; i < possibleGestureAngles.Length; i++) {
                     var angle = possibleGestureAngles[i];
                     var angleDistance = (float)Math.Abs(gestureAngle - angle);
 
-                    if ((angleDistance < GestureAngleDeadzoneDegrees) && (angleDistance < mappedAngleDistance)) {
+                    if ((angleDistance < GestureAngleRangeDegrees) && (angleDistance < mappedAngleDistance)) {
                         if (i == 4)
                             mappedAngle = 0;
                         else
@@ -192,13 +219,12 @@ namespace DS4_PSO2 {
                 }
 
                 var longEnough = (gestureLength >= MinimumGestureLength);
+                var gestureAge = current.When - current.StartWhen;
 
                 var swipeEnded = !current.IsActive;
+                var repeatActive = gestureAge.TotalMilliseconds >= GestureRepeatStartDelay;
 
                 if (mappedAngle.HasValue && longEnough) {
-                    var gestureAge = current.When - current.StartWhen;
-                    var repeatActive = gestureAge.TotalMilliseconds >= GestureRepeatStartDelay;
-
                     if (swipeEnded) {
                         // Suppress the final swipe if repeat is active. Otherwise, 
                         //  letting off the touch suddenly will trigger a sudden motion.
@@ -215,6 +241,9 @@ namespace DS4_PSO2 {
                         if (gestureTimes[mappedAngle.Value] != when) {
                             gestureTimes[mappedAngle.Value] = when;
                             MostRecentGestureText = gestureAngleNames[mappedAngle.Value] + " (repeat)";
+                            
+                            // If there was a pending confirmation press, cancel it as long as repeats are active.
+                            MostRecentTouchUpTime = MostRecentHeldTouchUpTime = default(DateTime);
                         }
                     }
 
@@ -225,15 +254,17 @@ namespace DS4_PSO2 {
                         MostRecentGestureText = String.Format("Too short ({0:000.0} px)", gestureLength);
                 }
 
-                if (swipeEnded)
-                    MostRecentTouchUpTime = now;
+                if (swipeEnded) {
+                    if (repeatActive) {
+                        MostRecentHeldTouchUpTime = now;
+                    } else {
+                        MostRecentTouchUpTime = now;
+                    }
+                }
             }
         }
 
         private bool UpdateJoystick (uint id, DateTime[] gestureTimes) {
-            // FIXME: It'd be faster to use the UpdateVJD function that takes a bitpacked blob,
-            //  but I'm too lazy to get that right currently.
-
             var now = DateTime.UtcNow;
 
             VJoy.JoystickState state = default(VJoy.JoystickState);
@@ -266,6 +297,22 @@ namespace DS4_PSO2 {
 
             GestureConfirmActive = (delta.TotalMilliseconds >= GestureConfirmDelay) &&
                 (delta.TotalMilliseconds <= GestureConfirmDelay + GesturePressDuration);
+
+            // If they held the touch long enough for it to repeat a few times, we confirm
+            //  immediately after the hold ends.
+            delta = (now - MostRecentHeldTouchUpTime);
+
+            GestureConfirmActive |= (delta.TotalMilliseconds >= GesturePressDuration) &&
+                (delta.TotalMilliseconds <= (GesturePressDuration * 2));
+
+            if (GestureConfirmActive && GestureConfirmButton.HasValue) {
+                if (!ShownConfirmMessage) {
+                    ShownConfirmMessage = true;
+                    MostRecentGestureText = "Confirm (auto)";
+                }
+            } else {
+                ShownConfirmMessage = false;
+            }
 
             SetButton(ref buttons, 0, DualShock4Button.Square);
             SetButton(ref buttons, 1, DualShock4Button.Cross);
@@ -300,21 +347,14 @@ namespace DS4_PSO2 {
             if ((this.WindowState == FormWindowState.Minimized) || !this.Visible) {
                 if (ShowInTaskbar)
                     ShowInTaskbar = false;
-                if (TopMost)
-                    TopMost = false;
 
-                niTrayIcon.Visible = true;
                 hidden = true;
             } else {
-                if (WindowState != FormWindowState.Normal)
-                    WindowState = FormWindowState.Normal;
-
                 if (!ShowInTaskbar)
                     ShowInTaskbar = true;
-                if (!TopMost)
-                    TopMost = true;
 
-                niTrayIcon.Visible = false;
+                if (WindowState != FormWindowState.Normal)
+                    WindowState = FormWindowState.Normal;
             }
 
             lock (this) {
@@ -446,17 +486,20 @@ namespace DS4_PSO2 {
         }
 
         private void exitToolStripMenuItem_Click (object sender, EventArgs e) {
-            niTrayIcon.Visible = false;
             this.Close();
         }
 
         private void showToolStripMenuItem_Click (object sender, EventArgs e) {
+            ShowInTaskbar = true;
+
             if (WindowState != FormWindowState.Normal)
                 WindowState = FormWindowState.Normal;
         }
 
         private void niTrayIcon_MouseDown (object sender, MouseEventArgs e) {
             if (e.Button == MouseButtons.Left) {
+                ShowInTaskbar = true;
+
                 if (WindowState != FormWindowState.Normal)
                     WindowState = FormWindowState.Normal;
             }
