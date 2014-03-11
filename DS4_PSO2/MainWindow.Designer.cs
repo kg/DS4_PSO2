@@ -96,7 +96,7 @@
             // tmrUpdate
             // 
             this.tmrUpdate.Enabled = true;
-            this.tmrUpdate.Interval = 25;
+            this.tmrUpdate.Interval = 33;
             this.tmrUpdate.Tick += new System.EventHandler(this.tmrUpdate_Tick);
             // 
             // tbAccelZ
@@ -339,7 +339,6 @@
             this.ShowGestureOverlay.TabIndex = 15;
             this.ShowGestureOverlay.Text = "Enable";
             this.ShowGestureOverlay.UseVisualStyleBackColor = true;
-            this.ShowGestureOverlay.CheckedChanged += new System.EventHandler(this.GestureOverlayMode_CheckedChanged);
             // 
             // NoGestureOverlay
             // 
@@ -352,7 +351,6 @@
             this.NoGestureOverlay.TabStop = true;
             this.NoGestureOverlay.Text = "Disable";
             this.NoGestureOverlay.UseVisualStyleBackColor = true;
-            this.NoGestureOverlay.CheckedChanged += new System.EventHandler(this.GestureOverlayMode_CheckedChanged);
             // 
             // StatusPage
             // 

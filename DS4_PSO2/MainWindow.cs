@@ -33,6 +33,9 @@ namespace DS4_PSO2 {
         // How long elapses between repeats.
         const float GestureRepeatInterval = 330f;
 
+        // Delay before auto-closing the overlay (in milliseconds)
+        const int OverlayAutoCloseDelay = 300;
+
         // The interval (in milliseconds) between joystick updates.
         const int UpdateInterval = 10;
 
@@ -346,6 +349,7 @@ namespace DS4_PSO2 {
 
         private void tmrUpdate_Tick (object sender, EventArgs e) {
             var hidden = false;
+            bool doRepaint = false;
 
             if ((this.WindowState == FormWindowState.Minimized) || !this.Visible) {
                 if (ShowInTaskbar)
@@ -395,10 +399,28 @@ namespace DS4_PSO2 {
                     }
                 }
 
-                if (GestureOverlay.Visible && (CurrentDualShock != null)) {
+                if (ShowGestureOverlay.Checked && (CurrentDualShock != null)) {
+                    doRepaint = true;
                     GestureOverlay.Update(CurrentDualShock, MostRecentGestureText);
                     MostRecentGestureText = null;
+                } else {
+                    if (GestureOverlay.Visible)
+                        GestureOverlay.Hide();
                 }
+            }
+
+            if (doRepaint)
+                GestureOverlay.Repaint();
+
+            if (GestureOverlay.IsIdle) {
+                if (GestureOverlay.Visible) {
+                    var idleDuration = DateTime.UtcNow - GestureOverlay.IdleSince.Value;
+                    if (idleDuration.TotalMilliseconds >= OverlayAutoCloseDelay)
+                        GestureOverlay.Hide();
+                }
+            } else {
+                if (!GestureOverlay.Visible)
+                    GestureOverlay.Show();
             }
         }
 
@@ -549,17 +571,6 @@ namespace DS4_PSO2 {
 
         private void MainWindow_Shown (object sender, EventArgs e) {
             // DoUpdateCheck();
-        }
-
-        private void GestureOverlayMode_CheckedChanged (object sender, EventArgs e) {
-            UpdateGestureOverlay();
-        }
-
-        private void UpdateGestureOverlay () {
-            if (NoGestureOverlay.Checked)
-                GestureOverlay.Hide();
-            else
-                GestureOverlay.Show();
         }
     }
 }

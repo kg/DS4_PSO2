@@ -75,6 +75,11 @@ namespace DS4_PSO2 {
             public string Text;
         }
 
+        struct LineInfo {
+            public PointF A, B;
+            public Color Color1, Color2;
+        }
+
         static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
         static readonly IntPtr HWND_TOP = new IntPtr(0);
@@ -84,8 +89,13 @@ namespace DS4_PSO2 {
         const byte AC_SRC_OVER = 0;
         const byte AC_SRC_ALPHA = 1;
 
-        const UInt32 SWP_NOSIZE = 0x01;
-        const UInt32 SWP_NOMOVE = 0x02;
+        const uint SWP_NOSIZE = 0x01;
+        const uint SWP_NOMOVE = 0x02;
+        const uint SWP_NOACTIVATE = 0x10;
+
+        const int HistoryLength = 20;
+        const int TextHistoryLength = 7;
+        const int TextFadeTimeMs = 1500;
 
         IntPtr ScreenDC, BitmapDC;
         IntPtr BackingBitmapBits;
@@ -93,17 +103,35 @@ namespace DS4_PSO2 {
         Bitmap BackingBitmap;
         Graphics BackingGraphics;
 
-        const int HistoryLength = 20;
-        const int TextHistoryLength = 7;
-        const int TextFadeTimeMs = 1500;
+        byte[] SourceBuffer, DestBuffer;
+
+        readonly ConvolutionKernel BlurFilter;
+
         readonly List<DualShock4Touchpad.TouchInfo> TouchHistory = new List<DualShock4Touchpad.TouchInfo>();
-        readonly List<TextEntry> TextHistory = new List<TextEntry>(); 
+        readonly List<TextEntry> TextHistory = new List<TextEntry>();
+        readonly List<LineInfo> LineInfos = new List<LineInfo>();
+        readonly GraphicsPath LinePath = new GraphicsPath();
 
         public GestureOverlay () {
             InitializeComponent();
 
             SetStyle(ControlStyles.AllPaintingInWmPaint, true);
             SetStyle(ControlStyles.UserPaint, true);
+
+            var outlineDivisor = 5700;
+            var outlineBias = -1000;
+
+            BlurFilter = new ConvolutionKernel(
+                outlineDivisor, outlineBias,
+                0, 0, 0, 1000, 0, 0, 0,
+                0, 0, 1000, 2000, 1000, 0, 0,
+                0, 1000, 2000, 4000, 2000, 1000, 0,
+                1000, 2000, 4000, -44000, 4000, 2000, 1000,
+                0, 1000, 2000, 4000, 2000, 1000, 0,
+                0, 0, 1000, 2000, 1000, 0, 0,
+                0, 0, 0, 1000, 0, 0, 0
+            );
+
         }
 
         protected override CreateParams CreateParams {
@@ -148,7 +176,34 @@ namespace DS4_PSO2 {
             BackingGraphics.SmoothingMode = SmoothingMode.HighQuality;
             BackingGraphics.TextRenderingHint = TextRenderingHint.AntiAlias;
 
+            SourceBuffer = new byte[BackingBitmap.Width * BackingBitmap.Height * 4];
+            DestBuffer = new byte[BackingBitmap.Width * BackingBitmap.Height * 4];
+
             BeginInvoke((Action)Repaint);
+        }
+
+        protected override void Dispose (bool disposing) {
+            if (disposing && (components != null)) {
+                components.Dispose();
+            }
+
+            if (disposing) {
+                if (BackingGraphics != null) {
+                    BackingGraphics.Dispose();
+                    BackingGraphics = null;
+                }
+
+                if (BackingBitmap != null) {
+                    BackingBitmap.Dispose();
+                    BackingBitmap = null;
+                }
+
+                DeleteObject(BackingBitmapHandle);
+                DeleteDC(BitmapDC);
+                ReleaseDC(IntPtr.Zero, ScreenDC);
+            }
+
+            base.Dispose(disposing);
         }
 
         protected override void OnPaint(PaintEventArgs e) {
@@ -165,12 +220,17 @@ namespace DS4_PSO2 {
             if (BackingGraphics == null)
                 return;
 
-            BackingGraphics.Clear(Color.Transparent);
+            var now = DateTime.UtcNow;
 
-            using (var pen = new Pen(Color.FromArgb(31, Color.Black), 2))
-                BackingGraphics.DrawRectangle(pen, 0, 0, ClientSize.Width - 1, ClientSize.Height - 1);
+            var wasIdle = IsIdle;
+            IsIdle = true;
+
+            if (Visible)
+                BackingGraphics.Clear(Color.Transparent);
 
             if (TouchHistory.Count > 2) {
+                LineInfos.Clear();
+
                 for (var i = 1; i < TouchHistory.Count; i++) {
                     var prior = TouchHistory[i - 1];
                     var current = TouchHistory[i];
@@ -179,20 +239,38 @@ namespace DS4_PSO2 {
                     var currentAlpha = (i * 255 / (TouchHistory.Count - 1));
 
                     if (prior.IsActive && current.IsActive) {
-                        var p1 = new PointF(prior.X / 5f, prior.Y / 5f);
-                        var p2 = new PointF(current.X / 5f, current.Y / 5f);
+                        LineInfos.Add(new LineInfo {
+                            A = new PointF(prior.X / 5f, prior.Y / 5f),
+                            B = new PointF(current.X / 5f, current.Y / 5f),
+                            Color1 = Color.FromArgb(priorAlpha, Color.White),
+                            Color2 = Color.FromArgb(currentAlpha, Color.White)
+                        });
 
-                        using (var brush = new LinearGradientBrush(new PointF(0, 0), new PointF(1, 1), Color.FromArgb(priorAlpha, Color.White), Color.FromArgb(currentAlpha, Color.White)))
-                        using (var pen = new Pen(brush, 3.5f))
-                            BackingGraphics.DrawLine(pen, p1, p2);
+                        IsIdle = false;
                     }
                 }
 
                 var last = TouchHistory[TouchHistory.Count - 1];
                 if (last.IsActive) {
-                    using (var pen = new Pen(Color.White, 2f))
-                        BackingGraphics.DrawLine(pen, last.StartX / 5f, last.StartY / 5f, last.X / 5f, last.Y / 5f);
+                    LineInfos.Add(new LineInfo {
+                        A = new PointF(last.StartX / 5f, last.StartY / 5f),
+                        B = new PointF(last.X / 5f, last.Y / 5f),
+                        Color1 = Color.White,
+                        Color2 = Color.White
+                    });
 
+                    IsIdle = false;
+                }
+
+                if (Visible)
+                foreach (var li in LineInfos) {
+                    using (var brush = new LinearGradientBrush(new PointF(0, 0), new PointF(1, 1), li.Color1, li.Color2))
+                    using (var pen = new Pen(brush, 3.5f))
+                        BackingGraphics.DrawLine(pen, li.A, li.B);
+                }
+
+                if (last.IsActive) {
+                    if (Visible)
                     using (var brush = new SolidBrush(Color.White))
                         BackingGraphics.FillEllipse(brush, (last.X / 5f) - 3f, (last.Y / 5f) - 3f, 6f, 6f);
                 }
@@ -201,27 +279,70 @@ namespace DS4_PSO2 {
             if (TextHistory.Count > 0) {
                 float y2 = ClientSize.Height;
 
-                var now = DateTime.UtcNow;
-
                 foreach (var te in TextHistory) {
                     var size = BackingGraphics.MeasureString(te.Text, Font);
                     y2 -= size.Height;
 
-                    int alpha = (int)(((now - te.When).TotalMilliseconds * 255) / TextFadeTimeMs);
-                    if (alpha < 0)
-                        alpha = 0;
-                    else if (alpha > 255)
-                        alpha = 255;
+                    int inverseAlpha = (int)(((now - te.When).TotalMilliseconds * 255) / TextFadeTimeMs);
+                    if (inverseAlpha <= 0)
+                        inverseAlpha = 0;
+                    else if (inverseAlpha > 255)
+                        continue;
 
-                    using (var shadowBrush = new SolidBrush(Color.FromArgb( 255 - alpha, Color.Black)))
-                    using (var brush = new SolidBrush(Color.FromArgb(255 - alpha, Color.White))) {
-                        BackingGraphics.DrawString(te.Text, Font, shadowBrush, 1, y2 + 1);
+                    if (Visible)
+                    using (var brush = new SolidBrush(Color.FromArgb(255 - inverseAlpha, Color.White)))
                         BackingGraphics.DrawString(te.Text, Font, brush, 0, y2);
-                    }
+
+                    IsIdle = false;
                 }
             }
 
-            FlushGraphicsToScreen();
+            if (IsIdle) {
+                if (!wasIdle)
+                    IdleSince = now;
+            } else {
+                IdleSince = null;
+            }
+
+            if (Visible)
+                BackingGraphics.Flush();
+
+            if (Visible)
+                ApplyOutlineFilter();
+
+            if (Visible)
+                FlushGraphicsToScreen();
+        }
+
+        private unsafe void ApplyOutlineFilter () {
+            fixed (byte * pSource = SourceBuffer)
+            fixed (byte * pDest = DestBuffer) {
+                var rct = new Rectangle(0, 0, BackingBitmap.Width, BackingBitmap.Height);
+                var bdSource = new BitmapData {
+                    Width = rct.Width,
+                    Height = rct.Height,
+                    PixelFormat = PixelFormat.Format32bppPArgb,
+                    Scan0 = new IntPtr(pSource),
+                    Stride = rct.Width * 4
+                };
+                var bdDest = new BitmapData {
+                    Width = rct.Width,
+                    Height = rct.Height,
+                    PixelFormat = PixelFormat.Format32bppPArgb,
+                    Scan0 = new IntPtr(pDest),
+                    Stride = rct.Width * 4
+                };
+
+                BlurFilter.Apply(pSource, pDest, rct.Width, rct.Height);
+
+                BackingBitmap.UnlockBits(
+                    BackingBitmap.LockBits(rct, ImageLockMode.UserInputBuffer | ImageLockMode.ReadOnly, PixelFormat.Format32bppPArgb, bdSource)
+                );
+
+                BackingBitmap.UnlockBits(
+                    BackingBitmap.LockBits(rct, ImageLockMode.UserInputBuffer | ImageLockMode.WriteOnly, PixelFormat.Format32bppPArgb, bdDest)
+                );
+            }
         }
 
         private void FlushGraphicsToScreen () {
@@ -236,7 +357,9 @@ namespace DS4_PSO2 {
                 SourceConstantAlpha = 255
             };
 
-            BackingGraphics.Flush();
+            SetWindowPos(
+                Handle, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+            );
 
             UpdateLayeredWindow(
                 Handle, ScreenDC, ref pDest, ref pSize, 
@@ -260,8 +383,6 @@ namespace DS4_PSO2 {
                 if (TextHistory.Count > TextHistoryLength)
                     TextHistory.RemoveAt(TextHistory.Count - 1);
             }
-
-            Repaint();
         }
 
         private void GestureOverlay_Resize (object sender, EventArgs e) {
@@ -271,15 +392,18 @@ namespace DS4_PSO2 {
             Repaint();
         }
 
-        private void TopmostHackTimer_Tick (object sender, EventArgs e) {
-            // Topmost is totally busted on Windows - I think maybe a bad interaction
-            //  with other windows that have the flag set, like fullscreen games?
-
-            SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-        }
-
         protected override bool ShowWithoutActivation {
             get { return true; }
+        }
+
+        public bool IsIdle {
+            get;
+            private set;
+        }
+
+        public DateTime? IdleSince {
+            get;
+            private set;
         }
     }
 }
