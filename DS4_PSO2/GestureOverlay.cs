@@ -9,6 +9,7 @@ using System.Drawing.Text;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Windows.Forms;
 using Squared.DualShock4;
 
@@ -220,98 +221,103 @@ namespace DS4_PSO2 {
             if (BackingGraphics == null)
                 return;
 
-            var now = DateTime.UtcNow;
+            lock (BackingGraphics) {
+                var now = DateTime.UtcNow;
 
-            var wasIdle = IsIdle;
-            IsIdle = true;
+                var wasIdle = IsIdle;
+                IsIdle = true;
 
-            if (Visible)
-                BackingGraphics.Clear(Color.Transparent);
+                if (Visible)
+                    BackingGraphics.Clear(Color.Transparent);
 
-            if (TouchHistory.Count > 2) {
-                LineInfos.Clear();
+                if (TouchHistory.Count > 2) {
+                    LineInfos.Clear();
 
-                for (var i = 1; i < TouchHistory.Count; i++) {
-                    var prior = TouchHistory[i - 1];
-                    var current = TouchHistory[i];
+                    for (var i = 1; i < TouchHistory.Count; i++) {
+                        var prior = TouchHistory[i - 1];
+                        var current = TouchHistory[i];
 
-                    var priorAlpha = ((i - 1) * 255 / (TouchHistory.Count - 1));
-                    var currentAlpha = (i * 255 / (TouchHistory.Count - 1));
+                        var priorAlpha = ((i - 1) * 255 / (TouchHistory.Count - 1));
+                        var currentAlpha = (i * 255 / (TouchHistory.Count - 1));
 
-                    if (prior.IsActive && current.IsActive) {
+                        if (prior.IsActive && current.IsActive) {
+                            LineInfos.Add(new LineInfo {
+                                A = new PointF(prior.X / 5f, prior.Y / 5f),
+                                B = new PointF(current.X / 5f, current.Y / 5f),
+                                Color1 = Color.FromArgb(priorAlpha, Color.White),
+                                Color2 = Color.FromArgb(currentAlpha, Color.White)
+                            });
+
+                            IsIdle = false;
+                        }
+                    }
+
+                    var last = TouchHistory[TouchHistory.Count - 1];
+                    if (last.IsActive) {
                         LineInfos.Add(new LineInfo {
-                            A = new PointF(prior.X / 5f, prior.Y / 5f),
-                            B = new PointF(current.X / 5f, current.Y / 5f),
-                            Color1 = Color.FromArgb(priorAlpha, Color.White),
-                            Color2 = Color.FromArgb(currentAlpha, Color.White)
+                            A = new PointF(last.StartX / 5f, last.StartY / 5f),
+                            B = new PointF(last.X / 5f, last.Y / 5f),
+                            Color1 = Color.White,
+                            Color2 = Color.White
                         });
+
+                        IsIdle = false;
+                    }
+
+                    if (Visible)
+                        foreach (var li in LineInfos) {
+                            using (var brush = new LinearGradientBrush(new PointF(0, 0), new PointF(1, 1), li.Color1, li.Color2))
+                            using (var pen = new Pen(brush, 3.5f))
+                                BackingGraphics.DrawLine(pen, li.A, li.B);
+                        }
+
+                    if (last.IsActive) {
+                        if (Visible)
+                            using (var brush = new SolidBrush(Color.White))
+                                BackingGraphics.FillEllipse(brush, (last.X / 5f) - 3f, (last.Y / 5f) - 3f, 6f, 6f);
+                    }
+                }
+
+                if (TextHistory.Count > 0) {
+                    float y2 = ClientSize.Height;
+
+                    foreach (var te in TextHistory) {
+                        var size = BackingGraphics.MeasureString(te.Text, Font);
+                        y2 -= size.Height;
+
+                        int inverseAlpha = (int)(((now - te.When).TotalMilliseconds * 255) / TextFadeTimeMs);
+                        if (inverseAlpha <= 0)
+                            inverseAlpha = 0;
+                        else if (inverseAlpha > 255)
+                            continue;
+
+                        if (Visible)
+                            using (var brush = new SolidBrush(Color.FromArgb(255 - inverseAlpha, Color.White)))
+                                BackingGraphics.DrawString(te.Text, Font, brush, 0, y2);
 
                         IsIdle = false;
                     }
                 }
 
-                var last = TouchHistory[TouchHistory.Count - 1];
-                if (last.IsActive) {
-                    LineInfos.Add(new LineInfo {
-                        A = new PointF(last.StartX / 5f, last.StartY / 5f),
-                        B = new PointF(last.X / 5f, last.Y / 5f),
-                        Color1 = Color.White,
-                        Color2 = Color.White
-                    });
-
-                    IsIdle = false;
+                if (IsIdle) {
+                    if (!wasIdle)
+                        IdleSince = now;
+                } else {
+                    IdleSince = null;
                 }
 
                 if (Visible)
-                foreach (var li in LineInfos) {
-                    using (var brush = new LinearGradientBrush(new PointF(0, 0), new PointF(1, 1), li.Color1, li.Color2))
-                    using (var pen = new Pen(brush, 3.5f))
-                        BackingGraphics.DrawLine(pen, li.A, li.B);
-                }
-
-                if (last.IsActive) {
-                    if (Visible)
-                    using (var brush = new SolidBrush(Color.White))
-                        BackingGraphics.FillEllipse(brush, (last.X / 5f) - 3f, (last.Y / 5f) - 3f, 6f, 6f);
-                }
+                    BackingGraphics.Flush();
             }
 
-            if (TextHistory.Count > 0) {
-                float y2 = ClientSize.Height;
-
-                foreach (var te in TextHistory) {
-                    var size = BackingGraphics.MeasureString(te.Text, Font);
-                    y2 -= size.Height;
-
-                    int inverseAlpha = (int)(((now - te.When).TotalMilliseconds * 255) / TextFadeTimeMs);
-                    if (inverseAlpha <= 0)
-                        inverseAlpha = 0;
-                    else if (inverseAlpha > 255)
-                        continue;
-
-                    if (Visible)
-                    using (var brush = new SolidBrush(Color.FromArgb(255 - inverseAlpha, Color.White)))
-                        BackingGraphics.DrawString(te.Text, Font, brush, 0, y2);
-
-                    IsIdle = false;
-                }
+            if (Visible) {
+                ThreadPool.QueueUserWorkItem((_) => {
+                    lock (BackingGraphics) {
+                        ApplyOutlineFilter();
+                        BeginInvoke((Action)FlushGraphicsToScreen);
+                    }
+                });
             }
-
-            if (IsIdle) {
-                if (!wasIdle)
-                    IdleSince = now;
-            } else {
-                IdleSince = null;
-            }
-
-            if (Visible)
-                BackingGraphics.Flush();
-
-            if (Visible)
-                ApplyOutlineFilter();
-
-            if (Visible)
-                FlushGraphicsToScreen();
         }
 
         private unsafe void ApplyOutlineFilter () {

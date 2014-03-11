@@ -96,7 +96,7 @@
             // tmrUpdate
             // 
             this.tmrUpdate.Enabled = true;
-            this.tmrUpdate.Interval = 33;
+            this.tmrUpdate.Interval = 25;
             this.tmrUpdate.Tick += new System.EventHandler(this.tmrUpdate_Tick);
             // 
             // tbAccelZ
