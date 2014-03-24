@@ -320,9 +320,9 @@ namespace DS4_PSO2 {
                 ShownConfirmMessage = false;
             }
 
-            SetButton(ref buttons, 0, DualShock4Button.Square);
-            SetButton(ref buttons, 1, DualShock4Button.Cross);
-            SetButton(ref buttons, 2, DualShock4Button.Circle);
+            SetButton(ref buttons, 0, DualShock4Button.Cross);
+            SetButton(ref buttons, 1, DualShock4Button.Circle);
+            SetButton(ref buttons, 2, DualShock4Button.Square);
             SetButton(ref buttons, 3, DualShock4Button.Triangle);
 
             SetButton(ref buttons, 4, DualShock4Button.L1);
