@@ -285,6 +285,7 @@
             this.btnConfigureJoystick.TabIndex = 13;
             this.btnConfigureJoystick.Text = "Auto-configure vJoy";
             this.btnConfigureJoystick.UseVisualStyleBackColor = true;
+            this.btnConfigureJoystick.Click += new System.EventHandler(this.btnConfigureJoystick_Click);
             // 
             // nudJoystickNumber
             // 
