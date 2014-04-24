@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.IO;
@@ -221,10 +222,16 @@ namespace HidLibrary
                 return ReadStatus.ReadError;
             }
         }
-        public ReadStatus ReadFile(byte[] inputBuffer)
+
+        public bool ReadFile(byte[] inputBuffer, bool isExclusive, out int error)
         {
-            if (safeReadHandle == null)
-                safeReadHandle = OpenHandle(_devicePath, true);
+            if ((safeReadHandle == null) || (safeReadHandle.IsInvalid)) {
+                if (safeReadHandle != null)
+                    safeReadHandle.Dispose();
+
+                safeReadHandle = OpenHandle(_devicePath, isExclusive);
+            }
+
             try
             {
                 uint bytesRead;
@@ -232,18 +239,24 @@ namespace HidLibrary
                 {
                     idleTicks = 0;
                 }
-                if (NativeMethods.ReadFile(safeReadHandle.DangerousGetHandle(), inputBuffer, (uint)inputBuffer.Length, out bytesRead, IntPtr.Zero))
+
+                var readResult = NativeMethods.ReadFile(safeReadHandle.DangerousGetHandle(), inputBuffer, (uint)inputBuffer.Length, out bytesRead, IntPtr.Zero);
+
+                if (readResult)
                 {
-                    return ReadStatus.Success;
+                    error = 0;
+                    return true;
                 }
                 else
                 {
-                    return ReadStatus.NoDataRead;
+                    error = Marshal.GetLastWin32Error();
+                    return false;
                 }
             }
             catch (Exception)
             {
-                return ReadStatus.ReadError;
+                error = 0;
+                return false;
             }
 
 

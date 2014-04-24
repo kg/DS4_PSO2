@@ -14,9 +14,6 @@ using Squared.DualShock4;
 
 namespace DS4_PSO2 {
     public partial class MainWindow : Form {
-        // The threshold for the L2/R2 axes being converted into digital buttons.
-        const float AxisThreshold = 0.4f;
-
         // The minimum distance (in touchpanel pixels) a swipe must go in order
         //  to be considered a gesture.
         const float MinimumGestureLength = 80f;
@@ -37,11 +34,18 @@ namespace DS4_PSO2 {
         const int OverlayAutoCloseDelay = 300;
 
         // The interval (in milliseconds) between joystick updates.
-        const int UpdateInterval = 10;
+        const int UpdateInterval = 5;
 
         // What button is used for gesture confirmations.
         // You can set this to null in order to disable confirmations.
         static readonly DualShock4Button? GestureConfirmButton = DualShock4Button.Circle;
+
+        // Auto-fire support
+        static readonly Dictionary<DualShock4Button, DateTime> ButtonPressedWhen = new Dictionary<DualShock4Button, DateTime>();
+        static readonly Dictionary<DualShock4Button, int> AutoFireButtons = new Dictionary<DualShock4Button, int> {
+        };
+        const int AutoFireDurationMs = 20;
+        const int AutoFireDelayMs = 20;
 
         // The base index of the buttons used by gestures.
         const int GestureButtonBase = 12;
@@ -177,11 +181,16 @@ namespace DS4_PSO2 {
             buttons = (buttons & ~mask) | maskedState;
         }
 
+        private static bool GetButton (uint buttons, int index) {
+            uint mask = (1u << index);
+            return (buttons & mask) != 0;
+        }
+
         private void SetButton (ref uint buttons, int index, DualShock4Button button) {
             var state = CurrentDualShock.Buttons[button];
             if (button == GestureConfirmButton)
                 state |= GestureConfirmActive;
-
+            
             SetButton(ref buttons, index, state);
         }
 
@@ -332,19 +341,43 @@ namespace DS4_PSO2 {
             SetButton(ref buttons, 8, DualShock4Button.L3);
             SetButton(ref buttons, 9, DualShock4Button.R3);
 
-            SetButton(ref buttons, 10, (CurrentDualShock.Axes[DualShock4Axis.L2] > AxisThreshold));
-            SetButton(ref buttons, 11, (CurrentDualShock.Axes[DualShock4Axis.R2] > AxisThreshold));
+            const float leftAxisThreshold = 0.55f;
+            const float rightAxisThreshold = 0.55f;
+
+            SetButton(ref buttons, 10, (CurrentDualShock.Axes[DualShock4Axis.L2] > leftAxisThreshold));
+            SetButton(ref buttons, 11, (CurrentDualShock.Axes[DualShock4Axis.R2] > rightAxisThreshold));
 
             SetButton(ref buttons, AfterGestureButtonBase, DualShock4Button.PS);
             SetButton(ref buttons, AfterGestureButtonBase + 1, DualShock4Button.TouchpadClick);
+            
+            foreach (var kvp in AutoFireButtons) {
+                var autoFireButtonState = CurrentDualShock.Buttons[kvp.Key];
+                var buttonState = GetButton(buttons, kvp.Value);
+
+                DateTime pressedWhen;
+                if (ButtonPressedWhen.TryGetValue(kvp.Key, out pressedWhen)) {
+                    if (autoFireButtonState) {
+                        const int modulo = AutoFireDelayMs + AutoFireDurationMs;
+
+                        var pressedDuration = now - pressedWhen;
+                        var pressedDurationRounded = pressedDuration.TotalMilliseconds % modulo;
+
+                        if (pressedDurationRounded >= AutoFireDurationMs)
+                            autoFireButtonState = false;
+                    } else
+                        ButtonPressedWhen.Remove(kvp.Key);
+
+                } else {
+                    ButtonPressedWhen[kvp.Key] = now;
+                }
+
+                SetButton(ref buttons, kvp.Value, autoFireButtonState || buttonState);
+            }
 
             state.Buttons = buttons;
             state.bHats = DPadMapping[CurrentDualShock.DPad];
 
-            if (!VJoy.UpdateVJD(id, ref state))
-                return false;
-
-            return true;
+            return VJoy.UpdateVJD(id, ref state);
         }
 
         private void tmrUpdate_Tick (object sender, EventArgs e) {
@@ -435,7 +468,7 @@ namespace DS4_PSO2 {
                 var dualshocks = DualShock4Info.Enumerate();
 
                 if (dualshocks.Length > 0)
-                    CurrentDualShock = new DualShock4(dualshocks[0]);
+                    CurrentDualShock = new DualShock4(dualshocks[0], false);
 
                 foreach (var info in dualshocks) {
                     if ((CurrentDualShock == null) || !Object.ReferenceEquals(info.Device, CurrentDualShock.Device))

@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using HidLibrary;
 
@@ -14,8 +16,14 @@ namespace Squared.DualShock4 {
         public readonly DualShock4Touchpad Touchpad = new DualShock4Touchpad();
         public readonly DualShock4Sensors Sensors = new DualShock4Sensors();
 
-        public DualShock4 (DualShock4Info info) {
+        public DualShock4 (DualShock4Info info, bool exclusive) {
             Info = info;
+            IsExclusive = exclusive;
+        }
+
+        public bool IsExclusive {
+            get;
+            private set;
         }
 
         public HidDevice Device {
@@ -42,8 +50,11 @@ namespace Squared.DualShock4 {
         public bool TryUpdate () {
             var buffer = new byte[64];
 
-            if (Device.ReadFile(buffer) != HidDevice.ReadStatus.Success)
+            int error;
+            if (!Device.ReadFile(buffer, IsExclusive, out error)) {
+                Console.WriteLine("Read error: {0}", (new Win32Exception(error).Message));
                 return false;
+            }
 
             Device.flush_Queue();
 

@@ -18,7 +18,8 @@ namespace Squared.DualShock4 {
         }
 
         public static DualShock4Info[] Enumerate () {
-            return (from hidd in HidDevices.Enumerate(0x054C, new int[] { 0x05C4 })
+            var devices = HidDevices.Enumerate(0x054C, new int[] { 0x05C4 }).ToArray();
+            return (from hidd in devices
                     select new DualShock4Info(hidd)).ToArray();
         }
     }
