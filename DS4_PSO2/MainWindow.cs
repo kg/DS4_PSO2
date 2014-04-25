@@ -99,6 +99,15 @@ namespace DS4_PSO2 {
 
             GestureOverlay = new GestureOverlay();
             niTrayIcon.Visible = true;
+
+            RefreshProfileList();
+        }
+
+        private void RefreshProfileList () {
+            cbProfileName.Items.Clear();
+
+            foreach (var profile in Directory.GetFiles(ProfilesFolder))
+                cbProfileName.Items.Add(Path.GetFileNameWithoutExtension(profile));
         }
 
         private void UpdaterThreadFunc () {
@@ -290,8 +299,16 @@ namespace DS4_PSO2 {
             state.AxisY = RescaleSignedAxis(CurrentDualShock.Axes[DualShock4Axis.LeftStickY]);
             state.AxisXRot = RescaleSignedAxis(CurrentDualShock.Axes[DualShock4Axis.RightStickX]);
             state.AxisYRot = RescaleSignedAxis(CurrentDualShock.Axes[DualShock4Axis.RightStickY]);
+
+            // Separate trigger axes
             state.AxisZRot = RescaleUnsignedAxis(CurrentDualShock.Axes[DualShock4Axis.L2]);
             state.Slider = RescaleUnsignedAxis(CurrentDualShock.Axes[DualShock4Axis.R2]);
+
+            // XBox 360 DInput style triggers (unified axis)
+            var z = 0f +
+                (CurrentDualShock.Axes[DualShock4Axis.R2] * -1) +
+                (CurrentDualShock.Axes[DualShock4Axis.L2] * 1);
+            state.AxisZ = RescaleSignedAxis(z);
 
             uint buttons = 0;
             TimeSpan delta;
@@ -478,41 +495,60 @@ namespace DS4_PSO2 {
             }
         }
 
+        private string AssemblyPath {
+            get {
+                return GetPathOfAssembly(Assembly.GetExecutingAssembly());
+            }
+        }
+
+        private string ProfilesFolder {
+            get {
+                var assemblyFolder = Path.GetDirectoryName(AssemblyPath);
+
+                return Path.Combine(
+                    assemblyFolder, "configs"
+                );
+            }
+        }
+
+        private string DevconPath {
+            get {
+                var assemblyFolder = Path.GetDirectoryName(AssemblyPath);
+
+                return Path.Combine(
+                    assemblyFolder, "devcon",
+                    Environment.Is64BitOperatingSystem ? "devcon-x64.exe" : "devcon-x86.exe"
+                );
+            }
+        }
+
         private void btnConfigureJoystick_Click (object sender, EventArgs e) {
-            var descriptor = new byte[] { 
-                0x05, 0x01, 0x15, 0x00, 0x09, 0x04, 0xa1, 0x01, 0x05, 0x01, 0x85, 0x01, 0x09, 0x01, 0x15, 0x00, 0x26,
-                0xff, 0x7f, 0x75, 0x20, 0x95, 0x01, 0xa1, 0x00, 0x09, 0x30, 0x81, 0x02, 0x09, 0x31, 0x81, 0x02, 0x81, 0x01, 0x09, 0x33, 0x81, 0x02, 0x09, 0x34, 0x81,
-                0x02, 0x09, 0x35, 0x81, 0x02, 0x09, 0x36, 0x81, 0x02, 0x81, 0x01, 0xc0, 0x15, 0x00, 0x27, 0x3c, 0x8c, 0x00, 0x00, 0x35, 0x00, 0x47, 0x3c, 0x8c, 0x00,
-                0x00, 0x65, 0x14, 0x75, 0x20, 0x95, 0x01, 0x09, 0x39, 0x81, 0x02, 0x95, 0x03, 0x81, 0x01, 0x05, 0x09, 0x15, 0x00, 0x25, 0x01, 0x55, 0x00, 0x65, 0x00,
-                0x19, 0x01, 0x29, 0x16, 0x75, 0x01, 0x95, 0x16, 0x81, 0x02, 0x75, 0x0a, 0x95, 0x01, 0x81, 0x01, 0xc0
-            };
-            var descriptorSize = 0x6d;
-
-            if (descriptor.Length != descriptorSize)
-                throw new InvalidDataException("what");
-
             var deviceKey = String.Format("Device{0:00}", nudJoystickNumber.Value);
 
-            // Write configuration into registry
-            using (var vjoy = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\services\vjoy", true))
-            using (var parameters = vjoy.CreateSubKey("Parameters"))
-            using (var device = parameters.CreateSubKey(deviceKey)) {
-                device.SetValue("HidReportDesctiptor", descriptor, RegistryValueKind.Binary);
-                device.SetValue("HidReportDesctiptorSize", descriptorSize, RegistryValueKind.DWord);
-            }
-
-            var assemblyPath = GetPathOfAssembly(Assembly.GetExecutingAssembly());
-            var assemblyFolder = Path.GetDirectoryName(assemblyPath);
-
-            var devconPath = Path.Combine(
-                assemblyFolder, "devcon",
-                Environment.Is64BitOperatingSystem ? "devcon-x64.exe" : "devcon-x86.exe"
+            var profileSourceText = File.ReadAllText(
+                Path.Combine(ProfilesFolder, (string)cbProfileName.SelectedItem + ".reg")
             );
+
+            var profileFixedText = profileSourceText.Replace("\\Device01", "\\" + deviceKey);
+
+            var tempPath = Path.Combine(Path.GetTempPath(), "DS4_PSO2.reg");
+            File.WriteAllText(tempPath, profileFixedText);
+
+            // Load configuration from .reg file
+            {
+                var psi = new ProcessStartInfo(
+                    "regedit.exe",
+                    "/S " + tempPath
+                );
+
+                using (var process = Process.Start(psi))
+                    process.WaitForExit();
+            }
 
             // Force restart vjoy device(s) to apply configuration
             {
                 var psi = new ProcessStartInfo(
-                    devconPath, 
+                    DevconPath, 
                     "restart \"root\\VID_1234&PID_BEAD&REV_0203\""
                 ) {
                     UseShellExecute = false,
@@ -602,6 +638,10 @@ namespace DS4_PSO2 {
 
         private void MainWindow_Shown (object sender, EventArgs e) {
             // DoUpdateCheck();
+        }
+
+        private void cbProfileName_SelectedIndexChanged (object sender, EventArgs e) {
+            btnConfigureJoystick.Enabled = (cbProfileName.SelectedIndex >= 0);
         }
     }
 }

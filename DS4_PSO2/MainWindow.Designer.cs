@@ -54,6 +54,8 @@
             this.StatusPage = new System.Windows.Forms.TabPage();
             this.pnlSensors = new System.Windows.Forms.Panel();
             this.txtDualShock4State = new System.Windows.Forms.TextBox();
+            this.label3 = new System.Windows.Forms.Label();
+            this.cbProfileName = new System.Windows.Forms.ComboBox();
             ((System.ComponentModel.ISupportInitialize)(this.tbAccelZ)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.tbAccelY)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.tbAccelX)).BeginInit();
@@ -251,13 +253,15 @@
             // 
             // groupBox2
             // 
+            this.groupBox2.Controls.Add(this.cbProfileName);
+            this.groupBox2.Controls.Add(this.label3);
             this.groupBox2.Controls.Add(this.chkJoystickEnabled);
             this.groupBox2.Controls.Add(this.btnConfigureJoystick);
             this.groupBox2.Controls.Add(this.nudJoystickNumber);
             this.groupBox2.Controls.Add(this.label2);
             this.groupBox2.Location = new System.Drawing.Point(6, 58);
             this.groupBox2.Name = "groupBox2";
-            this.groupBox2.Size = new System.Drawing.Size(396, 75);
+            this.groupBox2.Size = new System.Drawing.Size(396, 103);
             this.groupBox2.TabIndex = 12;
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "Virtual Joystick";
@@ -268,22 +272,23 @@
             this.chkJoystickEnabled.Checked = true;
             this.chkJoystickEnabled.CheckState = System.Windows.Forms.CheckState.Checked;
             this.chkJoystickEnabled.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.chkJoystickEnabled.Location = new System.Drawing.Point(6, 42);
+            this.chkJoystickEnabled.Location = new System.Drawing.Point(161, 12);
             this.chkJoystickEnabled.Name = "chkJoystickEnabled";
-            this.chkJoystickEnabled.Size = new System.Drawing.Size(175, 25);
+            this.chkJoystickEnabled.Size = new System.Drawing.Size(229, 25);
             this.chkJoystickEnabled.TabIndex = 14;
-            this.chkJoystickEnabled.Text = "Enable Joystick";
+            this.chkJoystickEnabled.Text = "Enable";
             this.chkJoystickEnabled.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.chkJoystickEnabled.UseVisualStyleBackColor = true;
             // 
             // btnConfigureJoystick
             // 
+            this.btnConfigureJoystick.Enabled = false;
             this.btnConfigureJoystick.FlatStyle = System.Windows.Forms.FlatStyle.System;
-            this.btnConfigureJoystick.Location = new System.Drawing.Point(187, 42);
+            this.btnConfigureJoystick.Location = new System.Drawing.Point(95, 70);
             this.btnConfigureJoystick.Name = "btnConfigureJoystick";
-            this.btnConfigureJoystick.Size = new System.Drawing.Size(175, 25);
+            this.btnConfigureJoystick.Size = new System.Drawing.Size(295, 25);
             this.btnConfigureJoystick.TabIndex = 13;
-            this.btnConfigureJoystick.Text = "Auto-configure vJoy";
+            this.btnConfigureJoystick.Text = "Apply Profile";
             this.btnConfigureJoystick.UseVisualStyleBackColor = true;
             this.btnConfigureJoystick.Click += new System.EventHandler(this.btnConfigureJoystick_Click);
             // 
@@ -291,7 +296,7 @@
             // 
             this.nudJoystickNumber.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-            this.nudJoystickNumber.Location = new System.Drawing.Point(115, 16);
+            this.nudJoystickNumber.Location = new System.Drawing.Point(95, 16);
             this.nudJoystickNumber.Maximum = new decimal(new int[] {
             8,
             0,
@@ -303,7 +308,7 @@
             0,
             0});
             this.nudJoystickNumber.Name = "nudJoystickNumber";
-            this.nudJoystickNumber.Size = new System.Drawing.Size(275, 20);
+            this.nudJoystickNumber.Size = new System.Drawing.Size(60, 20);
             this.nudJoystickNumber.TabIndex = 12;
             this.nudJoystickNumber.Value = new decimal(new int[] {
             1,
@@ -391,6 +396,26 @@
             this.txtDualShock4State.TabIndex = 3;
             this.txtDualShock4State.WordWrap = false;
             // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(6, 46);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(80, 13);
+            this.label3.TabIndex = 15;
+            this.label3.Text = "Joystick Profile:";
+            // 
+            // cbProfileName
+            // 
+            this.cbProfileName.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cbProfileName.FormattingEnabled = true;
+            this.cbProfileName.Location = new System.Drawing.Point(95, 43);
+            this.cbProfileName.Name = "cbProfileName";
+            this.cbProfileName.Size = new System.Drawing.Size(295, 21);
+            this.cbProfileName.Sorted = true;
+            this.cbProfileName.TabIndex = 16;
+            this.cbProfileName.SelectedIndexChanged += new System.EventHandler(this.cbProfileName_SelectedIndexChanged);
+            // 
             // MainWindow
             // 
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.None;
@@ -458,6 +483,8 @@
         private System.Windows.Forms.Button btnConfigureJoystick;
         private System.Windows.Forms.NumericUpDown nudJoystickNumber;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.ComboBox cbProfileName;
+        private System.Windows.Forms.Label label3;
     }
 }
 
