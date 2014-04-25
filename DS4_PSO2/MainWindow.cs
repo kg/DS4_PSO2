@@ -7,6 +7,7 @@ using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -503,27 +504,24 @@ namespace DS4_PSO2 {
             var assemblyPath = GetPathOfAssembly(Assembly.GetExecutingAssembly());
             var assemblyFolder = Path.GetDirectoryName(assemblyPath);
 
+            var devconPath = Path.Combine(
+                assemblyFolder, "devcon",
+                Environment.Is64BitOperatingSystem ? "devcon-x64.exe" : "devcon-x86.exe"
+            );
+
             // Force restart vjoy device(s) to apply configuration
             {
                 var psi = new ProcessStartInfo(
-                    Path.Combine(assemblyFolder, "devcon", "devcon-x86.exe"), 
-                    @"restart ""root\VID_1234&PID_BEAD&REV_0202"
+                    devconPath, 
+                    "restart \"root\\VID_1234&PID_BEAD&REV_0203\""
                 ) {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
                 };
 
                 using (var process = Process.Start(psi))
-                    ;
-            }
-
-            {
-                var psi = new ProcessStartInfo(
-                    Path.Combine(assemblyFolder, "devcon", "devcon-x64.exe"),
-                    @"restart ""root\VID_1234&PID_BEAD&REV_0202"
-                ) {
-                };
-
-                using (var process = Process.Start(psi))
-                    ;
+                    process.WaitForExit();
             }
         }
 
